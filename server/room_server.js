@@ -17,6 +17,7 @@ const Message = {
   ANSWER: 5,
   CANDIDATE: 6,
   SEAL: 7,
+  RELAY: 8,
 };
 
 const MIME = {
@@ -118,6 +119,14 @@ function join(ws, requested) {
 
 const server = http.createServer((req, res) => {
   const rawPath = new URL(req.url, `http://${req.headers.host || "localhost"}`).pathname;
+  if (req.method === "GET" && rawPath === "/health") {
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(JSON.stringify({ ok: true, service: "TWELVE room server" }));
+    return;
+  }
   if (req.method === "GET" && rawPath === "/rooms") {
     res.writeHead(200, {
       "Content-Type": "application/json; charset=utf-8",
@@ -145,7 +154,7 @@ const server = http.createServer((req, res) => {
   });
 });
 
-const wss = new WebSocketServer({ noServer: true });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024 });
 server.on("upgrade", (req, socket, head) => {
   if (new URL(req.url, "http://localhost").pathname !== "/signal") {
     socket.destroy();
@@ -176,6 +185,10 @@ wss.on("connection", (ws) => {
       return;
     }
     const target = room && room.peers.get(Number(message.id));
+    if (target && type === Message.RELAY && message.data && typeof message.data === "object") {
+      send(target, Message.RELAY, ws.peerId, message.data);
+      return;
+    }
     if (target && [Message.OFFER, Message.ANSWER, Message.CANDIDATE].includes(type)) {
       send(target, type, ws.peerId, message.data);
     }

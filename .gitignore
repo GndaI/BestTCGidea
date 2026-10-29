@@ -17,6 +17,7 @@ export_credentials.cfg
 *.tmp
 *.translation
 *.exe
+*_export_templates.tpz
 ~*.dll
 
 # Mono generated files

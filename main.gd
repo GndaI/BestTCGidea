@@ -681,6 +681,10 @@ func _ready() -> void:
 	room_signaling.identity_ready.connect(_on_room_identity_ready)
 	room_signaling.status_changed.connect(_on_room_status_changed)
 	room_signaling.failed.connect(_on_room_failed)
+	room_signaling.peer_connected.connect(_on_room_peer_connected)
+	room_signaling.peer_disconnected.connect(_on_room_peer_disconnected)
+	room_signaling.game_message.connect(_on_room_game_message)
+	room_signaling.connection_lost.connect(_on_room_connection_lost)
 	add_child(room_signaling)
 	room_list_request = HTTPRequest.new()
 	room_list_request.request_completed.connect(_on_room_list_received)
@@ -1606,8 +1610,57 @@ func _on_room_failed(message: String) -> void:
 	online_state = "idle"
 	current_room_code = ""
 	online_notice = message
-	multiplayer.multiplayer_peer = null
 	render()
+
+func _on_room_peer_connected(peer_id: int) -> void:
+	remote_peer_id = peer_id
+	if not online_host or online_state not in ["room_waiting", "hosting"]:
+		return
+	online_state = "lobby"
+	start_screen = true
+	drafting = true
+	ai_enabled = false
+	draft_player = local_player
+	reset_decks()
+	local_deck_submitted = false
+	remote_deck_submitted = false
+	room_signaling.send_game("enter_lobby")
+	render()
+
+func _on_room_peer_disconnected(peer_id: int) -> void:
+	if peer_id != remote_peer_id:
+		return
+	_on_peer_disconnected(peer_id)
+
+func _on_room_connection_lost(message: String) -> void:
+	if online_state in ["connecting", "room_waiting", "room_joining"]:
+		_on_room_failed(message)
+	else:
+		_on_server_disconnected()
+		online_notice = message
+		render()
+
+func _on_room_game_message(kind: String, payload: Variant) -> void:
+	var guest_to_host := kind in ["submit_deck", "intent", "request_state"]
+	var host_to_guest := kind in ["enter_lobby", "start_draft", "state"]
+	if (online_host and not guest_to_host) or (not online_host and not host_to_guest):
+		return
+	match kind:
+		"enter_lobby":
+			_rpc_enter_online_lobby()
+		"start_draft":
+			_rpc_start_online_draft()
+		"submit_deck":
+			if payload is Dictionary and payload.get("deck", []) is Array:
+				_rpc_submit_online_deck(payload.get("deck", []))
+		"intent":
+			if payload is Dictionary:
+				_rpc_submit_online_intent(payload)
+		"state":
+			if payload is Dictionary:
+				_rpc_receive_online_state(payload)
+		"request_state":
+			_rpc_request_online_state()
 
 func start_join() -> void:
 	if address_edit != null and not address_edit.text.strip_edges().is_empty(): join_address = address_edit.text.strip_edges()
@@ -1740,7 +1793,7 @@ func begin_online_draft() -> void:
 	deck_library_mode = "online"
 	start_page = "decks"
 	editing_deck_index = -1
-	rpc_id(remote_peer_id, "_rpc_start_online_draft")
+	room_signaling.send_game("start_draft")
 	render()
 
 @rpc("authority", "call_remote", "reliable")
@@ -1764,7 +1817,7 @@ func _rpc_start_online_draft() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_submit_online_deck(deck: Array) -> void:
-	if not online_host or multiplayer.get_remote_sender_id() != remote_peer_id or not _valid_online_deck(deck): return
+	if not online_host or not _valid_online_deck(deck): return
 	decks[1] = deck.duplicate(true)
 	remote_deck_submitted = true
 	if local_deck_submitted:
@@ -1801,7 +1854,7 @@ func start_online_match() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_submit_online_intent(intent: Dictionary) -> void:
-	if not online_host or multiplayer.get_remote_sender_id() != remote_peer_id: return
+	if not online_host: return
 	_apply_online_intent(1, intent)
 
 @rpc("authority", "call_remote", "reliable")
@@ -1832,18 +1885,18 @@ func _send_online_intent(intent: Dictionary) -> void:
 		waiting_for_sync = true
 		sync_retry_count = 0
 		info = "행동을 호스트에게 전달 중…"
-		rpc_id(1, "_rpc_submit_online_intent", intent)
+		room_signaling.send_game("intent", intent)
 		sync_timer.start()
 		render()
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_online_state() -> void:
 	if not online_host or online_state != "playing": return
-	var sender := multiplayer.get_remote_sender_id()
-	if sender != remote_peer_id: return
-	rpc_id(sender, "_rpc_receive_online_state", _pack_online_state())
+	room_signaling.send_game("state", _pack_online_state())
 
 func _has_online_remote_peer() -> bool:
+	if room_signaling != null and room_signaling.is_room_connected():
+		return remote_peer_id in [1, 2]
 	if multiplayer.multiplayer_peer == null or multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		return false
 	var peers := multiplayer.get_peers()
@@ -1859,7 +1912,7 @@ func _request_online_resync() -> void:
 	online_state = "playing"
 	waiting_for_sync = true
 	info = "호스트에게 최신 전투 상태를 다시 요청하는 중…"
-	rpc_id(1, "_rpc_request_online_state")
+	room_signaling.send_game("request_state")
 	sync_timer.start()
 	render()
 
@@ -1871,7 +1924,7 @@ func _on_online_sync_timeout() -> void:
 	sync_retry_count += 1
 	if sync_retry_count <= ONLINE_SYNC_MAX_RETRIES:
 		info = "응답이 늦어 최신 전투 상태를 다시 요청합니다. (%d/%d)" % [sync_retry_count, ONLINE_SYNC_MAX_RETRIES]
-		rpc_id(1, "_rpc_request_online_state")
+		room_signaling.send_game("request_state")
 		sync_timer.start()
 		render()
 		return
@@ -1924,7 +1977,7 @@ func _apply_online_intent(player: int, intent: Dictionary) -> void:
 
 func _broadcast_online_state() -> void:
 	if online_host and remote_peer_id > 0 and online_state == "playing":
-		rpc_id(remote_peer_id, "_rpc_receive_online_state", _pack_online_state())
+		room_signaling.send_game("state", _pack_online_state())
 
 func _pack_online_state() -> Dictionary:
 	var packed_players: Array = []
@@ -2689,7 +2742,7 @@ func submit_selected_online_deck() -> void:
 			deck_editor_notice = online_notice
 			render()
 	else:
-		rpc_id(1, "_rpc_submit_online_deck", decks[local_player])
+		room_signaling.send_game("submit_deck", {"deck": decks[local_player]})
 		online_notice = "덱을 제출했습니다. 호스트가 대전을 시작할 때까지 기다려 주세요."
 		deck_editor_notice = online_notice
 		render()
@@ -3186,7 +3239,7 @@ func confirm_draft() -> void:
 				online_notice = "내 덱을 제출했습니다. 상대 덱 제출을 기다리는 중…"
 				render()
 		else:
-			rpc_id(1, "_rpc_submit_online_deck", decks[local_player])
+			room_signaling.send_game("submit_deck", {"deck": decks[local_player]})
 			online_notice = "덱을 제출했습니다. 호스트가 대전을 시작할 때까지 기다려 주세요."
 			render()
 		return

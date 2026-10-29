@@ -7,7 +7,8 @@ if not exist "%NODE_EXE%" goto node_missing
 if not exist "node_modules\ws" goto module_missing
 
 echo Game server starting...
-echo Open http://127.0.0.1:8000 in your browser.
+echo Enter http://127.0.0.1:8000 in the Windows game's Online screen.
+echo You can also open that address in a browser for the web build.
 echo Keep this window open while playing.
 echo.
 "%NODE_EXE%" room_server.js

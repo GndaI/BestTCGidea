@@ -2,7 +2,7 @@
   "name": "best-tcg-room-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Static web and two-player WebRTC signaling server",
+  "description": "Static web and two-player WebSocket relay server",
   "main": "room_server.js",
   "scripts": {
     "start": "node room_server.js"

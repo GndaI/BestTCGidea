@@ -71,7 +71,8 @@ try {
     Write-Host "PUBLIC GAME ADDRESS" -ForegroundColor Green
     Write-Host $publicUrl -ForegroundColor Cyan
     Write-Host "============================================================" -ForegroundColor Green
-    Write-Host "Send this address and the six-character room code to your friend."
+    Write-Host "Enter this address in both Windows games, or send it as a web-game link."
+    Write-Host "Public rooms appear in the list; private rooms use a six-character code."
     Write-Host "Keep this window open. Close it to stop sharing the game."
     Write-Host "The address is also saved in public-address.txt."
     Write-Host ""
