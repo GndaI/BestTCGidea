@@ -3,6 +3,7 @@ services:
     name: twelve-room-server
     runtime: node
     plan: free
+    region: singapore
     rootDir: server
     buildCommand: npm install
     startCommand: npm start
