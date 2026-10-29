@@ -23,6 +23,7 @@ const FIELD_CARD_SCALE := 1.0
 const FIELD_CARD_ASPECT := 280.0 / 200.0
 const FIELD_CARD_GAP := 16.0 / 3.0
 const SAVED_DECKS_PATH := "user://saved_decks.json"
+const ONLINE_SERVER_PATH := "user://online_server.txt"
 const MAX_CUSTOM_DECKS := 8
 const ONLINE_SYNC_TIMEOUT := 4.0
 const ONLINE_SYNC_MAX_RETRIES := 2
@@ -133,8 +134,10 @@ var waiting_for_sync := false
 var sync_timer: Timer
 var sync_retry_count := 0
 var join_address := "ws://127.0.0.1:24680"
+var online_server_address := "http://127.0.0.1:8000"
 var online_port := 24680
 var address_edit: LineEdit
+var online_server_edit: LineEdit
 var port_edit: LineEdit
 var join_port_field: LineEdit
 var room_code_edit: LineEdit
@@ -672,6 +675,7 @@ func _ready() -> void:
 	overlay_body.add_theme_constant_override("separation", 14)
 	overlay_content.add_child(overlay_body)
 	_load_saved_decks()
+	_load_online_server_address()
 	reset_decks()
 	room_signaling = RoomSignalingScript.new()
 	room_signaling.identity_ready.connect(_on_room_identity_ready)
@@ -1222,6 +1226,18 @@ func render_online_menu() -> void:
 		label_at(menu, "온라인 서버에 연결 중…", BODY_FONT_SIZE, GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		main_menu_button(menu, "연결 취소", stop_network)
 	else:
+		if not OS.has_feature("web"):
+			var server_row := row_at(menu)
+			server_row.custom_minimum_size = Vector2(560, 52)
+			online_server_edit = LineEdit.new()
+			online_server_edit.text = online_server_address
+			online_server_edit.placeholder_text = "서버 주소 · https://… 또는 http://…"
+			online_server_edit.custom_minimum_size = Vector2(420, 52)
+			online_server_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			online_server_edit.text_submitted.connect(func(_value): apply_online_server_address())
+			server_row.add_child(online_server_edit)
+			var apply_button := button_at(server_row, "적용", apply_online_server_address)
+			apply_button.custom_minimum_size = Vector2(120, 52)
 		var public_title := label_at(menu, "공개 방", MENU_FONT_SIZE, BLUE)
 		public_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var refresh_note := label_at(menu, "목록은 10초마다 자동으로 새로 불러옵니다.", BODY_FONT_SIZE, MUTED)
@@ -1350,7 +1366,7 @@ func show_settings() -> void:
 func show_account() -> void:
 	var dialog := AcceptDialog.new()
 	dialog.title = "계정"
-	dialog.dialog_text = "현재 덱은 이 브라우저에 저장됩니다.\n온라인 계정 연동 기능은 추후 추가할 예정입니다.\n\n저장된 덱: %d개" % saved_decks.size()
+	dialog.dialog_text = "현재 덱은 이 기기에 저장됩니다.\n온라인 계정 연동 기능은 추후 추가할 예정입니다.\n\n저장된 덱: %d개" % saved_decks.size()
 	add_child(dialog)
 	dialog.popup_centered(Vector2i(500, 240))
 	dialog.visibility_changed.connect(func(): if not dialog.visible: dialog.queue_free())
@@ -1431,14 +1447,53 @@ func signaling_url() -> String:
 		var value = JavaScriptBridge.eval("(location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/signal'", true)
 		if value != null and not str(value).is_empty():
 			return str(value)
-	return "ws://127.0.0.1:8000/signal"
+	var base := _normalized_online_server_address()
+	if base.begins_with("https://"):
+		return "wss://" + base.trim_prefix("https://") + "/signal"
+	return "ws://" + base.trim_prefix("http://") + "/signal"
 
 func rooms_url() -> String:
 	if OS.has_feature("web"):
 		var value = JavaScriptBridge.eval("location.origin + '/rooms'", true)
 		if value != null and not str(value).is_empty():
 			return str(value)
-	return "http://127.0.0.1:8000/rooms"
+	return _normalized_online_server_address() + "/rooms"
+
+func _normalized_online_server_address() -> String:
+	var value := online_server_address.strip_edges()
+	while value.ends_with("/"):
+		value = value.trim_suffix("/")
+	return value if not value.is_empty() else "http://127.0.0.1:8000"
+
+func _load_online_server_address() -> void:
+	if not FileAccess.file_exists(ONLINE_SERVER_PATH):
+		return
+	var value := FileAccess.get_file_as_string(ONLINE_SERVER_PATH).strip_edges()
+	if value.begins_with("http://") or value.begins_with("https://"):
+		online_server_address = value
+
+func _write_online_server_address() -> void:
+	var file := FileAccess.open(ONLINE_SERVER_PATH, FileAccess.WRITE)
+	if file != null:
+		file.store_string(online_server_address)
+
+func apply_online_server_address() -> void:
+	var value := online_server_edit.text.strip_edges() if is_instance_valid(online_server_edit) else online_server_address
+	while value.ends_with("/"):
+		value = value.trim_suffix("/")
+	if not value.begins_with("http://") and not value.begins_with("https://"):
+		online_notice = "서버 주소는 http:// 또는 https://로 시작해야 합니다."
+		render()
+		return
+	if room_list_request_busy:
+		room_list_request.cancel_request()
+		room_list_request_busy = false
+	online_server_address = value
+	_write_online_server_address()
+	public_rooms.clear()
+	online_notice = "서버 주소를 적용했습니다."
+	render()
+	fetch_public_rooms()
 
 func fetch_public_rooms() -> void:
 	if start_page != "online" or online_state != "idle" or room_list_request_busy:

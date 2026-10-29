@@ -289,7 +289,10 @@ func run() -> void:
 	await process_frame
 	feature_scene.open_online_menu()
 	await process_frame
-	check(feature_scene.root.find_children("*", "LineEdit", true, false).size() > 0, "web connection screen provides a server URL field")
+	check(is_instance_valid(feature_scene.online_server_edit), "native online screen provides a server URL field")
+	feature_scene.online_server_address = "https://example.test/"
+	check(feature_scene.signaling_url() == "wss://example.test/signal", "native HTTPS server address converts to secure signaling URL")
+	check(feature_scene.rooms_url() == "https://example.test/rooms", "native server address provides the public room-list URL")
 	feature_scene.online_mode = true
 	feature_scene.online_host = true
 	feature_scene.online_state = "lobby"
