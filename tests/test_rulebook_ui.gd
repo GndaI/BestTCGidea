@@ -285,6 +285,21 @@ func run() -> void:
 			break
 	check(is_instance_valid(potato_name_label) and potato_name_label.get_theme_color("font_color") == Color("c8b6ff"), "patch-note card names use a distinct lavender color")
 	check(is_instance_valid(potato_name_label) and not potato_name_label.get_parent() is HBoxContainer, "patch-note status markers sit beside change details instead of card names")
+	feature_scene.open_account()
+	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("AccountScreen", true, false)), "account button opens a dedicated full account screen")
+	check(is_instance_valid(feature_scene.root.find_child("AccountEmailEdit", true, false)) and is_instance_valid(feature_scene.root.find_child("AccountPasswordEdit", true, false)), "account login provides email and password fields")
+	check(is_instance_valid(feature_scene.root.find_child("AccountSetupNotice", true, false)), "unconfigured account screen clearly requests public Supabase connection settings")
+	feature_scene.set_account_mode("signup")
+	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("AccountNicknameEdit", true, false)) and is_instance_valid(feature_scene.root.find_child("AccountPasswordConfirmEdit", true, false)), "account signup adds nickname and password confirmation fields")
+	feature_scene.account_email_text = "player@example.com"
+	feature_scene.account_nickname_text = "플레이어"
+	feature_scene.account_password_text = "password1"
+	feature_scene.account_password_confirm_text = "different1"
+	feature_scene.submit_account_form()
+	await process_frame
+	check("일치하지 않습니다" in feature_scene.account_notice, "account signup blocks mismatched password confirmation before a network request")
 	feature_scene.open_battle_menu()
 	await process_frame
 	feature_scene.open_online_menu()
