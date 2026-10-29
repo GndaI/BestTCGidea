@@ -862,7 +862,7 @@ func render_main_menu() -> void:
 	var logo := label_at(logo_column, "최고의TCGidea", TITLE_FONT_SIZE, GOLD)
 	logo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	emphasize_label(logo, 0.42)
-	var subtitle := label_at(logo_column, "카드 전투 게임", BODY_FONT_SIZE, MUTED)
+	var subtitle := label_at(logo_column, "TWELVE", BODY_FONT_SIZE, MUTED)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	emphasize_label(subtitle, 0.24)
 
