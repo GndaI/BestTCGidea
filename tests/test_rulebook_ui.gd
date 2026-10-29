@@ -289,7 +289,8 @@ func run() -> void:
 	await process_frame
 	check(is_instance_valid(feature_scene.root.find_child("AccountScreen", true, false)), "account button opens a dedicated full account screen")
 	check(is_instance_valid(feature_scene.root.find_child("AccountEmailEdit", true, false)) and is_instance_valid(feature_scene.root.find_child("AccountPasswordEdit", true, false)), "account login provides email and password fields")
-	check(is_instance_valid(feature_scene.root.find_child("AccountSetupNotice", true, false)), "unconfigured account screen clearly requests public Supabase connection settings")
+	var setup_notice = feature_scene.root.find_child("AccountSetupNotice", true, false)
+	check(is_instance_valid(setup_notice) == not feature_scene.account_auth.is_configured(), "account setup notice matches the Supabase connection state")
 	feature_scene.set_account_mode("signup")
 	await process_frame
 	check(is_instance_valid(feature_scene.root.find_child("AccountNicknameEdit", true, false)) and is_instance_valid(feature_scene.root.find_child("AccountPasswordConfirmEdit", true, false)), "account signup adds nickname and password confirmation fields")
