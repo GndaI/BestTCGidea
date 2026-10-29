@@ -289,7 +289,13 @@ func run() -> void:
 	await process_frame
 	feature_scene.open_online_menu()
 	await process_frame
-	check(is_instance_valid(feature_scene.online_server_edit), "native online screen provides a server URL field")
+	check(is_instance_valid(feature_scene.root.find_child("OnlineBrowser", true, false)), "online screen provides the public room browser and room creation layout")
+	check(is_instance_valid(feature_scene.root.find_child("PublicRoomNameEdit", true, false)), "online screen provides a public room name field")
+	var online_screen_texts: Array[String] = []
+	for online_control in feature_scene.root.find_children("*", "Control", true, false):
+		if online_control is Label or online_control is Button:
+			online_screen_texts.append(online_control.text)
+	check(not online_screen_texts.any(func(text): return "비공개" in text or "방 코드" in text), "online screen removes private-room and room-code controls")
 	check(feature_scene.DEFAULT_ONLINE_SERVER == "https://besttcgidea-render-server.onrender.com", "native online screen defaults to the fixed Render room server")
 	feature_scene.online_server_address = "https://example.test/"
 	check(feature_scene.signaling_url() == "wss://example.test/signal", "native HTTPS server address converts to secure signaling URL")
@@ -297,12 +303,17 @@ func run() -> void:
 	feature_scene.online_mode = true
 	feature_scene.online_host = true
 	feature_scene.online_state = "lobby"
+	feature_scene.remote_peer_id = 2
+	feature_scene.local_lobby_ready = true
+	feature_scene.remote_lobby_ready = false
 	feature_scene.start_screen = true
 	feature_scene.start_page = "online"
 	feature_scene.drafting = true
 	feature_scene.render()
 	await process_frame
 	check(is_instance_valid(feature_scene.root.find_child("OnlineLobby", true, false)), "online connection opens a lobby that shows both players")
+	var start_online_button: Button = feature_scene.root.find_child("StartOnlineDraftButton", true, false)
+	check(is_instance_valid(start_online_button) and start_online_button.disabled, "host cannot start deck selection before the guest is ready")
 	feature_scene.online_host = false
 	feature_scene.online_state = "playing"
 	feature_scene.waiting_for_sync = true

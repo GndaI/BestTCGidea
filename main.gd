@@ -141,7 +141,6 @@ var address_edit: LineEdit
 var online_server_edit: LineEdit
 var port_edit: LineEdit
 var join_port_field: LineEdit
-var room_code_edit: LineEdit
 var public_room_name_edit: LineEdit
 var public_room_name := ""
 var public_rooms: Array = []
@@ -152,6 +151,9 @@ var room_list_request_busy := false
 var room_refresh_timer: Timer
 var room_signaling: Node
 var current_room_code := ""
+var current_room_name := ""
+var local_lobby_ready := false
+var remote_lobby_ready := false
 var saved_decks: Array = []
 var deck_name_text := ""
 var deck_library_mode := "manage"
@@ -1210,19 +1212,17 @@ func render_ai_menu() -> void:
 	main_menu_button(menu, "AI 고급", start_strong_ai_draft)
 
 func render_online_menu() -> void:
-	var menu := submenu_at("온라인", back_to_battle_menu)
-	menu.custom_minimum_size.x = 560
-	if online_state == "lobby":
+	if online_state in ["lobby", "room_waiting"]:
 		render_online_lobby()
 		return
-	if online_state == "room_waiting":
-		var code := label_at(menu, "방 코드  %s" % current_room_code, BODY_FONT_SIZE, GOLD)
-		code.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var waiting := label_at(menu, "친구의 참가를 기다리는 중입니다.", BODY_FONT_SIZE, MUTED)
-		waiting.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		main_menu_button(menu, "대기 취소", stop_network)
-	elif online_state == "room_joining":
-		var joining := label_at(menu, "방 %s에 연결하는 중…" % current_room_code, BODY_FONT_SIZE, GOLD)
+	if online_state == "idle":
+		screen_header_at("온라인", back_to_battle_menu)
+		render_online_browser()
+		return
+	var menu := submenu_at("온라인", back_to_battle_menu)
+	menu.custom_minimum_size.x = 560
+	if online_state == "room_joining":
+		var joining := label_at(menu, "공개 방에 연결하는 중…", BODY_FONT_SIZE, GOLD)
 		joining.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		main_menu_button(menu, "연결 취소", stop_network)
 	elif online_state == "hosting":
@@ -1232,60 +1232,7 @@ func render_online_menu() -> void:
 		label_at(menu, "온라인 서버에 연결 중…", BODY_FONT_SIZE, GOLD).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		main_menu_button(menu, "연결 취소", stop_network)
 	else:
-		if not OS.has_feature("web"):
-			var server_row := row_at(menu)
-			server_row.custom_minimum_size = Vector2(560, 52)
-			online_server_edit = LineEdit.new()
-			online_server_edit.text = online_server_address
-			online_server_edit.placeholder_text = "서버 주소 · https://… 또는 http://…"
-			online_server_edit.custom_minimum_size = Vector2(420, 52)
-			online_server_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			online_server_edit.text_submitted.connect(func(_value): apply_online_server_address())
-			server_row.add_child(online_server_edit)
-			var apply_button := button_at(server_row, "적용", apply_online_server_address)
-			apply_button.custom_minimum_size = Vector2(120, 52)
-		var public_title := label_at(menu, "공개 방", MENU_FONT_SIZE, BLUE)
-		public_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var refresh_note := label_at(menu, "목록은 10초마다 자동으로 새로 불러옵니다.", BODY_FONT_SIZE, MUTED)
-		refresh_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var wake_note := label_at(menu, "무료 서버가 쉬는 중이면 첫 연결만 최대 1분 걸릴 수 있습니다.", 16, MUTED)
-		wake_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		var create_row := row_at(menu)
-		create_row.custom_minimum_size = Vector2(560, 58)
-		public_room_name_edit = LineEdit.new()
-		public_room_name_edit.text = public_room_name
-		public_room_name_edit.placeholder_text = "공개 방 이름"
-		public_room_name_edit.max_length = 20
-		public_room_name_edit.custom_minimum_size = Vector2(365, 58)
-		public_room_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		public_room_name_edit.text_changed.connect(func(value): public_room_name = value)
-		create_row.add_child(public_room_name_edit)
-		var create_button := button_at(create_row, "방 만들기", create_public_web_room)
-		create_button.custom_minimum_size = Vector2(175, 58)
-		var room_scroll := ScrollContainer.new()
-		room_scroll.custom_minimum_size = Vector2(560, 220)
-		room_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-		menu.add_child(room_scroll)
-		public_room_list_box = VBoxContainer.new()
-		public_room_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		public_room_list_box.add_theme_constant_override("separation", 8)
-		room_scroll.add_child(public_room_list_box)
-		public_room_list_status = label_at(menu, "", BODY_FONT_SIZE, MUTED)
-		public_room_list_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_rebuild_public_room_list()
-		var private_title := label_at(menu, "비공개 방 · 방 코드로 참가", BODY_FONT_SIZE, GOLD)
-		private_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		main_menu_button(menu, "비공개 방 만들기", create_web_room)
-		var room_row := row_at(menu)
-		room_row.custom_minimum_size = Vector2(560, 58)
-		room_code_edit = LineEdit.new()
-		room_code_edit.placeholder_text = "방 코드 6자리"
-		room_code_edit.max_length = 6
-		room_code_edit.custom_minimum_size = Vector2(365, 58)
-		room_code_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		room_row.add_child(room_code_edit)
-		var join_button := button_at(room_row, "참가", join_web_room)
-		join_button.custom_minimum_size = Vector2(175, 58)
+		label_at(menu, "온라인 연결 상태를 확인하고 있습니다.", BODY_FONT_SIZE, MUTED).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if not online_notice.is_empty():
 		var notice := label_at(menu, online_notice, BODY_FONT_SIZE, Color("ffbd84"))
 		notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1379,19 +1326,184 @@ func show_account() -> void:
 	dialog.popup_centered(Vector2i(500, 240))
 	dialog.visibility_changed.connect(func(): if not dialog.visible: dialog.queue_free())
 
+func render_online_browser() -> void:
+	# The public room browser intentionally owns the whole online page. Private
+	# room codes are no longer part of the player-facing flow.
+	var body := HBoxContainer.new()
+	body.name = "OnlineBrowser"
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 22)
+	root.add_child(body)
+
+	var room_panel := PanelContainer.new()
+	room_panel.custom_minimum_size.x = 850
+	room_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	room_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	room_panel.add_theme_stylebox_override("panel", box(Color("101b2e"), Color("3b5472")))
+	body.add_child(room_panel)
+	var room_col := VBoxContainer.new()
+	room_col.add_theme_constant_override("separation", 14)
+	room_panel.add_child(room_col)
+	var room_header := row_at(room_col)
+	var public_title := label_at(room_header, "공개 방", MENU_FONT_SIZE, GOLD)
+	emphasize_label(public_title, 0.35)
+	var refresh_note := label_at(room_header, "↻ 10초마다 자동 갱신", 17, MUTED)
+	refresh_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	refresh_note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var wake_note := label_at(room_col, "무료 서버가 쉬는 중이면 첫 연결만 최대 1분 걸릴 수 있습니다.", 16, MUTED)
+	wake_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var room_scroll := ScrollContainer.new()
+	room_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	room_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	room_col.add_child(room_scroll)
+	public_room_list_box = VBoxContainer.new()
+	public_room_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	public_room_list_box.add_theme_constant_override("separation", 12)
+	room_scroll.add_child(public_room_list_box)
+	public_room_list_status = label_at(room_col, "", 17, MUTED)
+	public_room_list_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_rebuild_public_room_list()
+
+	var create_panel := PanelContainer.new()
+	create_panel.custom_minimum_size.x = 420
+	create_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	create_panel.add_theme_stylebox_override("panel", box(Color("101b2e"), Color("3b5472")))
+	body.add_child(create_panel)
+	var create_col := VBoxContainer.new()
+	create_col.add_theme_constant_override("separation", 20)
+	create_panel.add_child(create_col)
+	var create_title := label_at(create_col, "방 만들기", MENU_FONT_SIZE, GOLD)
+	emphasize_label(create_title, 0.35)
+	var name_label := label_at(create_col, "방 이름", 18, Color("ecf2fc"))
+	public_room_name_edit = LineEdit.new()
+	public_room_name_edit.name = "PublicRoomNameEdit"
+	public_room_name_edit.text = public_room_name
+	public_room_name_edit.placeholder_text = "방 이름"
+	public_room_name_edit.max_length = 20
+	public_room_name_edit.custom_minimum_size.y = 58
+	public_room_name_edit.text_changed.connect(func(value): public_room_name = value)
+	public_room_name_edit.text_submitted.connect(func(_value): create_public_web_room())
+	create_col.add_child(public_room_name_edit)
+	var create_button := button_at(create_col, "방 만들기", create_public_web_room)
+	create_button.name = "CreatePublicRoomButton"
+	create_button.custom_minimum_size.y = 72
+	create_button.add_theme_font_size_override("font_size", 24)
+	create_button.add_theme_stylebox_override("normal", box(Color("3d3426"), GOLD.darkened(0.2)))
+	if not online_notice.is_empty():
+		var notice := label_at(create_col, online_notice, 17, Color("ffbd84"))
+		notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	create_col.add_child(spacer)
+	var connection := label_at(create_col, "● 서버 연결됨", 17, GREEN)
+	connection.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
 func render_online_lobby() -> void:
-	var lobby := panel_at(root, GREEN)
+	screen_header_at("대기방", stop_network)
+	var lobby := HBoxContainer.new()
 	lobby.name = "OnlineLobby"
-	label_at(lobby, "친구와 연결 · 대기방", MENU_FONT_SIZE, GREEN)
-	label_at(lobby, "● P1 호스트 · 연결됨", BODY_FONT_SIZE, GOLD)
-	label_at(lobby, "● P2 참가자 · 연결됨", BODY_FONT_SIZE, BLUE)
-	label_at(lobby, "두 플레이어의 연결을 확인했습니다.", BODY_FONT_SIZE, MUTED)
+	lobby.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lobby.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	lobby.add_theme_constant_override("separation", 22)
+	root.add_child(lobby)
+	var players_panel := PanelContainer.new()
+	players_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	players_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	players_panel.add_theme_stylebox_override("panel", box(Color("101b2e"), Color("3b5472")))
+	lobby.add_child(players_panel)
+	var players_col := VBoxContainer.new()
+	players_col.add_theme_constant_override("separation", 18)
+	players_panel.add_child(players_col)
+	var room_name := current_room_name if not current_room_name.is_empty() else "온라인 대기방"
+	var name_label := label_at(players_col, room_name, MENU_FONT_SIZE, Color("c7d2e3"))
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var guest_connected := remote_peer_id > 0 or online_state == "lobby"
+	_online_player_panel(players_col, 1, true, true, true, online_host)
+	_online_player_panel(players_col, 2, guest_connected, remote_lobby_ready if online_host else local_lobby_ready, false, not online_host)
+	var players_spacer := Control.new()
+	players_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	players_col.add_child(players_spacer)
+
+	var settings_panel := PanelContainer.new()
+	settings_panel.custom_minimum_size.x = 420
+	settings_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	settings_panel.add_theme_stylebox_override("panel", box(Color("101b2e"), Color("3b5472")))
+	lobby.add_child(settings_panel)
+	var settings_col := VBoxContainer.new()
+	settings_col.add_theme_constant_override("separation", 14)
+	settings_panel.add_child(settings_col)
+	var settings_title := label_at(settings_col, "게임 설정", MENU_FONT_SIZE, GOLD)
+	emphasize_label(settings_title, 0.35)
+	_online_setting_row(settings_col, "대전 방식", "일반전")
+	_online_setting_row(settings_col, "덱 구성", "방에서 선택")
+	_online_setting_row(settings_col, "관전자", "없음")
+	var settings_spacer := Control.new()
+	settings_spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	settings_col.add_child(settings_spacer)
 	if online_host:
-		button_at(lobby, "덱 구성 시작", begin_online_draft)
+		var start_button := button_at(settings_col, "덱 구성 시작", begin_online_draft, not guest_connected or not remote_lobby_ready)
+		start_button.name = "StartOnlineDraftButton"
+		start_button.custom_minimum_size.y = 76
+		start_button.add_theme_font_size_override("font_size", 24)
 	else:
-		var waiting := button_at(lobby, "호스트가 덱 구성을 시작하기를 기다리는 중…", func(): pass, true)
-		waiting.custom_minimum_size.y = 50
-	button_at(lobby, "대기방 나가기", stop_network)
+		var waiting := button_at(settings_col, "방장이 시작하기를 기다리는 중…", func(): pass, true)
+		waiting.custom_minimum_size.y = 76
+	var status_text := "1/2명 접속 · 참가자를 기다리고 있습니다" if not guest_connected else ("2/2명 접속 · 모두 준비하면 시작할 수 있습니다" if not (remote_lobby_ready if online_host else local_lobby_ready) else "2/2명 접속 · 덱 구성을 시작할 수 있습니다")
+	var status := label_at(root, "● %s" % status_text, 18, GREEN if guest_connected else MUTED)
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+func _online_player_panel(parent: Node, player_number: int, connected: bool, ready: bool, is_host: bool, is_local: bool) -> void:
+	var shell := PanelContainer.new()
+	shell.custom_minimum_size.y = 174
+	shell.add_theme_stylebox_override("panel", box(Color("14243b"), GOLD if is_host else BLUE))
+	parent.add_child(shell)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 18)
+	shell.add_child(row)
+	var connection := label_at(row, "●\n%s" % ("접속됨" if connected else "대기 중"), 16, GREEN if connected else MUTED)
+	connection.custom_minimum_size.x = 86
+	connection.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	connection.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var avatar := Label.new()
+	avatar.text = "●"
+	avatar.custom_minimum_size = Vector2(92, 92)
+	avatar.add_theme_font_size_override("font_size", 72)
+	avatar.add_theme_color_override("font_color", GOLD if is_host else (BLUE if connected else MUTED))
+	avatar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	avatar.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(avatar)
+	var identity := VBoxContainer.new()
+	identity.custom_minimum_size.x = 230
+	identity.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(identity)
+	label_at(identity, "플레이어 %d" % player_number, 25, Color("f3f6fc") if connected else MUTED)
+	label_at(identity, "♛ 방장" if is_host else ("참가자" if connected else "빈 자리"), 18, GOLD if is_host else MUTED)
+	var deck_icons := label_at(row, "▣  ▣  ▣" if connected else "□  □  □", 30, Color("b8c5d8") if connected else MUTED)
+	deck_icons.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	deck_icons.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	if is_local and not is_host and connected:
+		var ready_button := button_at(row, "준비 취소" if ready else "준비", toggle_online_ready)
+		ready_button.name = "OnlineReadyButton"
+		ready_button.custom_minimum_size = Vector2(180, 66)
+		ready_button.add_theme_font_size_override("font_size", 22)
+	else:
+		var state := label_at(row, "준비 완료" if ready else ("대기 중" if connected else "참가자 대기 중"), 22, GREEN if ready else MUTED)
+		state.custom_minimum_size.x = 180
+		state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		state.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+func _online_setting_row(parent: Node, title_text: String, value_text: String) -> void:
+	var shell := PanelContainer.new()
+	shell.custom_minimum_size.y = 76
+	shell.add_theme_stylebox_override("panel", box(Color("14243b"), Color("2f4664")))
+	parent.add_child(shell)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	shell.add_child(row)
+	var title := label_at(row, title_text, 18, MUTED)
+	var value := label_at(row, value_text, 19, Color("f3f6fc"))
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 func start_ai_draft() -> void:
 	ai_difficulty = "easy"
@@ -1550,10 +1662,25 @@ func _rebuild_public_room_list() -> void:
 		var code := str(room_data.get("code", ""))
 		var players := int(room_data.get("players", 0))
 		var waiting := str(room_data.get("status", "")) == "waiting" and players < 2
-		var state_text := "입장 가능" if waiting else "진행 중"
-		var title := "%s     %d/2명 · %s" % [str(room_data.get("name", "이름 없는 방")), players, state_text]
-		var room_button := button_at(public_room_list_box, title, join_public_room.bind(code), not waiting)
-		room_button.custom_minimum_size = Vector2(560, 54)
+		var room_name := str(room_data.get("name", "이름 없는 방"))
+		var shell := PanelContainer.new()
+		shell.custom_minimum_size.y = 112
+		shell.add_theme_stylebox_override("panel", box(Color("14243b"), Color("38516e")))
+		public_room_list_box.add_child(shell)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 16)
+		shell.add_child(row)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(info)
+		var name_label := label_at(info, room_name, 23, Color("f3f6fc"))
+		emphasize_label(name_label, 0.24)
+		var seats := "●  ○" if players == 1 else ("●  ●" if players >= 2 else "○  ○")
+		label_at(info, "%s    %d/2명" % [seats, players], 18, GOLD if waiting else MUTED)
+		var state_text := "참가" if waiting else "진행 중"
+		var room_button := button_at(row, state_text, join_public_room.bind(code), not waiting)
+		room_button.custom_minimum_size = Vector2(160, 62)
+		room_button.add_theme_font_size_override("font_size", 21)
 
 func create_public_web_room() -> void:
 	var room_name := public_room_name_edit.text.strip_edges() if public_room_name_edit != null else public_room_name.strip_edges()
@@ -1562,6 +1689,9 @@ func create_public_web_room() -> void:
 		render()
 		return
 	public_room_name = room_name
+	current_room_name = room_name
+	local_lobby_ready = true
+	remote_lobby_ready = false
 	room_refresh_timer.stop()
 	online_notice = ""
 	current_room_code = ""
@@ -1575,27 +1705,13 @@ func join_public_room(code: String) -> void:
 	room_refresh_timer.stop()
 	online_notice = ""
 	current_room_code = code
-	online_state = "connecting"
-	render()
-	room_signaling.join_room(signaling_url(), code)
-
-func create_web_room() -> void:
-	room_refresh_timer.stop()
-	online_notice = ""
-	current_room_code = ""
-	online_state = "connecting"
-	render()
-	room_signaling.create_room(signaling_url())
-
-func join_web_room() -> void:
-	var code := room_code_edit.text.strip_edges().to_upper() if room_code_edit != null else ""
-	if code.length() != 6:
-		online_notice = "방 코드는 여섯 자리입니다. 다시 확인해주세요."
-		render()
-		return
-	online_notice = ""
-	room_refresh_timer.stop()
-	current_room_code = code
+	current_room_name = ""
+	for room_data in public_rooms:
+		if room_data is Dictionary and str(room_data.get("code", "")) == code:
+			current_room_name = str(room_data.get("name", ""))
+			break
+	local_lobby_ready = false
+	remote_lobby_ready = true
 	online_state = "connecting"
 	render()
 	room_signaling.join_room(signaling_url(), code)
@@ -1605,6 +1721,8 @@ func _on_room_identity_ready(peer_id: int, code: String) -> void:
 	online_mode = true
 	online_host = peer_id == 1
 	local_player = 0 if online_host else 1
+	local_lobby_ready = online_host
+	remote_lobby_ready = not online_host
 	online_state = "room_waiting" if online_host else "room_joining"
 	online_notice = ""
 	render()
@@ -1617,6 +1735,9 @@ func _on_room_failed(message: String) -> void:
 	online_host = false
 	online_state = "idle"
 	current_room_code = ""
+	current_room_name = ""
+	local_lobby_ready = false
+	remote_lobby_ready = false
 	online_notice = message
 	render()
 
@@ -1632,7 +1753,9 @@ func _on_room_peer_connected(peer_id: int) -> void:
 	reset_decks()
 	local_deck_submitted = false
 	remote_deck_submitted = false
-	room_signaling.send_game("enter_lobby")
+	local_lobby_ready = true
+	remote_lobby_ready = false
+	room_signaling.send_game("enter_lobby", {"name": current_room_name})
 	render()
 
 func _on_room_peer_disconnected(peer_id: int) -> void:
@@ -1649,13 +1772,17 @@ func _on_room_connection_lost(message: String) -> void:
 		render()
 
 func _on_room_game_message(kind: String, payload: Variant) -> void:
-	var guest_to_host := kind in ["submit_deck", "intent", "request_state"]
+	var guest_to_host := kind in ["ready_state", "submit_deck", "intent", "request_state"]
 	var host_to_guest := kind in ["enter_lobby", "start_draft", "state"]
 	if (online_host and not guest_to_host) or (not online_host and not host_to_guest):
 		return
 	match kind:
 		"enter_lobby":
-			_rpc_enter_online_lobby()
+			_rpc_enter_online_lobby(payload)
+		"ready_state":
+			if online_host and payload is bool:
+				remote_lobby_ready = payload
+				render()
 		"start_draft":
 			_rpc_start_online_draft()
 		"submit_deck":
@@ -1701,7 +1828,10 @@ func stop_network() -> void:
 	online_host = false
 	online_state = "idle"
 	current_room_code = ""
+	current_room_name = ""
 	remote_peer_id = 0
+	local_lobby_ready = false
+	remote_lobby_ready = false
 	local_deck_submitted = false
 	remote_deck_submitted = false
 	waiting_for_sync = false
@@ -1774,22 +1904,33 @@ func _on_server_disconnected() -> void:
 	render()
 
 @rpc("authority", "call_remote", "reliable")
-func _rpc_enter_online_lobby() -> void:
+func _rpc_enter_online_lobby(payload: Variant = {}) -> void:
 	online_mode = true
 	online_host = false
 	local_player = 1
 	online_state = "lobby"
+	if payload is Dictionary:
+		current_room_name = str(payload.get("name", current_room_name))
 	start_screen = true
 	drafting = true
 	ai_enabled = false
 	draft_player = local_player
 	local_deck_submitted = false
 	remote_deck_submitted = false
+	local_lobby_ready = false
+	remote_lobby_ready = true
 	online_notice = "호스트와 연결되었습니다."
 	render()
 
+func toggle_online_ready() -> void:
+	if online_host or online_state != "lobby" or remote_peer_id <= 0:
+		return
+	local_lobby_ready = not local_lobby_ready
+	room_signaling.send_game("ready_state", local_lobby_ready)
+	render()
+
 func begin_online_draft() -> void:
-	if not online_host or online_state != "lobby" or remote_peer_id <= 0: return
+	if not online_host or online_state != "lobby" or remote_peer_id <= 0 or not remote_lobby_ready: return
 	room_signaling.seal_room()
 	online_state = "draft"
 	start_screen = true

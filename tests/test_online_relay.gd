@@ -32,8 +32,11 @@ func run() -> void:
 			join_started = true
 			guest.join_public_room(host.current_room_code)
 		if not draft_started and host.online_state == "lobby" and guest.online_state == "lobby":
-			draft_started = true
-			host.begin_online_draft()
+			if not guest.local_lobby_ready:
+				guest.toggle_online_ready()
+			elif host.remote_lobby_ready:
+				draft_started = true
+				host.begin_online_draft()
 		if host.online_state == "draft" and not host_deck_sent:
 			host_deck_sent = true
 			host.decks[host.local_player] = host._default_deck()
