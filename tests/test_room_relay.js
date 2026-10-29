@@ -1,11 +1,16 @@
 const { spawn } = require("child_process");
 const http = require("http");
+const https = require("https");
 const path = require("path");
 const { WebSocket } = require(path.resolve(__dirname, "..", "server", "node_modules", "ws"));
 
 const port = 24831;
+const externalBase = String(process.env.RELAY_TEST_BASE || "").replace(/\/$/, "");
+const socketUrl = externalBase
+  ? `${externalBase.replace(/^http/, "ws")}/signal`
+  : `ws://127.0.0.1:${port}/signal`;
 const serverPath = path.resolve(__dirname, "..", "server", "room_server.js");
-const server = spawn(process.execPath, [serverPath], {
+const server = externalBase ? null : spawn(process.execPath, [serverPath], {
   env: { ...process.env, PORT: String(port) },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -15,32 +20,31 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function openClient() {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/signal`);
+    const ws = new WebSocket(socketUrl);
+    ws.messageQueue = [];
+    ws.on("message", (buffer) => {
+      ws.messageQueue.push(JSON.parse(buffer.toString("utf8")));
+    });
     ws.once("open", () => resolve(ws));
     ws.once("error", reject);
   });
 }
 
-function nextMessage(ws, predicate) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.off("message", onMessage);
-      reject(new Error("message timeout"));
-    }, 3000);
-    function onMessage(buffer) {
-      const message = JSON.parse(buffer.toString("utf8"));
-      if (!predicate(message)) return;
-      clearTimeout(timer);
-      ws.off("message", onMessage);
-      resolve(message);
-    }
-    ws.on("message", onMessage);
-  });
+async function nextMessage(ws, predicate) {
+  const deadline = Date.now() + (externalBase ? 15000 : 3000);
+  while (Date.now() < deadline) {
+    const index = ws.messageQueue.findIndex(predicate);
+    if (index >= 0) return ws.messageQueue.splice(index, 1)[0];
+    await wait(10);
+  }
+  throw new Error("message timeout");
 }
 
 function getRooms() {
   return new Promise((resolve, reject) => {
-    http.get(`http://127.0.0.1:${port}/rooms`, (response) => {
+    const url = externalBase ? `${externalBase}/rooms` : `http://127.0.0.1:${port}/rooms`;
+    const transport = url.startsWith("https:") ? https : http;
+    transport.get(url, (response) => {
       let body = "";
       response.setEncoding("utf8");
       response.on("data", (chunk) => { body += chunk; });
@@ -50,7 +54,7 @@ function getRooms() {
 }
 
 async function run() {
-  await wait(250);
+  if (!externalBase) await wait(250);
   const host = await openClient();
   host.send(JSON.stringify({ type: Message.JOIN, id: 0, data: { code: "", public: true, name: "중계 시험방" } }));
   const hostId = await nextMessage(host, (message) => message.type === Message.ID);
@@ -78,7 +82,8 @@ async function run() {
   host.send(JSON.stringify({ type: Message.SEAL, id: 0, data: "" }));
   await wait(50);
   const rooms = await getRooms();
-  if (rooms.length !== 1 || rooms[0].status !== "playing" || rooms[0].players !== 2) throw new Error("room status failed");
+  const ownRoom = rooms.find((room) => room.code === hostJoin.data);
+  if (!ownRoom || ownRoom.status !== "playing" || ownRoom.players !== 2) throw new Error("room status failed");
 
   host.close();
   guest.close();
@@ -86,9 +91,9 @@ async function run() {
 }
 
 run().then(() => {
-  server.kill();
+  if (server) server.kill();
 }).catch((error) => {
-  server.kill();
+  if (server) server.kill();
   console.error(error.stack || error);
   process.exitCode = 1;
 });

@@ -24,6 +24,7 @@ const FIELD_CARD_ASPECT := 280.0 / 200.0
 const FIELD_CARD_GAP := 16.0 / 3.0
 const SAVED_DECKS_PATH := "user://saved_decks.json"
 const ONLINE_SERVER_PATH := "user://online_server.txt"
+const DEFAULT_ONLINE_SERVER := "https://besttcgidea-render-server.onrender.com"
 const MAX_CUSTOM_DECKS := 8
 const ONLINE_SYNC_TIMEOUT := 4.0
 const ONLINE_SYNC_MAX_RETRIES := 2
@@ -134,7 +135,7 @@ var waiting_for_sync := false
 var sync_timer: Timer
 var sync_retry_count := 0
 var join_address := "ws://127.0.0.1:24680"
-var online_server_address := "http://127.0.0.1:8000"
+var online_server_address := DEFAULT_ONLINE_SERVER
 var online_port := 24680
 var address_edit: LineEdit
 var online_server_edit: LineEdit
@@ -687,6 +688,7 @@ func _ready() -> void:
 	room_signaling.connection_lost.connect(_on_room_connection_lost)
 	add_child(room_signaling)
 	room_list_request = HTTPRequest.new()
+	room_list_request.timeout = 75.0
 	room_list_request.request_completed.connect(_on_room_list_received)
 	add_child(room_list_request)
 	room_refresh_timer = Timer.new()
@@ -1246,6 +1248,8 @@ func render_online_menu() -> void:
 		public_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var refresh_note := label_at(menu, "목록은 10초마다 자동으로 새로 불러옵니다.", BODY_FONT_SIZE, MUTED)
 		refresh_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var wake_note := label_at(menu, "무료 서버가 쉬는 중이면 첫 연결만 최대 1분 걸릴 수 있습니다.", 16, MUTED)
+		wake_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var create_row := row_at(menu)
 		create_row.custom_minimum_size = Vector2(560, 58)
 		public_room_name_edit = LineEdit.new()
@@ -1467,12 +1471,16 @@ func _normalized_online_server_address() -> String:
 	var value := online_server_address.strip_edges()
 	while value.ends_with("/"):
 		value = value.trim_suffix("/")
-	return value if not value.is_empty() else "http://127.0.0.1:8000"
+	return value if not value.is_empty() else DEFAULT_ONLINE_SERVER
 
 func _load_online_server_address() -> void:
 	if not FileAccess.file_exists(ONLINE_SERVER_PATH):
 		return
 	var value := FileAccess.get_file_as_string(ONLINE_SERVER_PATH).strip_edges()
+	if "trycloudflare.com" in value or value in ["http://127.0.0.1:8000", "http://localhost:8000"]:
+		online_server_address = DEFAULT_ONLINE_SERVER
+		_write_online_server_address()
+		return
 	if value.begins_with("http://") or value.begins_with("https://"):
 		online_server_address = value
 
@@ -1504,7 +1512,7 @@ func fetch_public_rooms() -> void:
 		return
 	room_list_request_busy = true
 	if is_instance_valid(public_room_list_status):
-		public_room_list_status.text = "방 목록을 불러오는 중…"
+		public_room_list_status.text = "서버와 방 목록을 확인하는 중…"
 	var error := room_list_request.request(rooms_url())
 	if error != OK:
 		room_list_request_busy = false
@@ -1515,7 +1523,7 @@ func _on_room_list_received(_result: int, response_code: int, _headers: PackedSt
 	room_list_request_busy = false
 	if response_code != 200:
 		if is_instance_valid(public_room_list_status):
-			public_room_list_status.text = "방 목록을 불러오지 못했습니다. 10초 뒤 다시 시도합니다."
+			public_room_list_status.text = "서버를 깨우는 중일 수 있습니다. 10초 뒤 다시 시도합니다."
 		return
 	var payload = JSON.parse_string(body.get_string_from_utf8())
 	if not payload is Dictionary or not payload.get("rooms", []) is Array:

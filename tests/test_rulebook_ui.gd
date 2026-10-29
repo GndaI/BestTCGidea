@@ -290,6 +290,7 @@ func run() -> void:
 	feature_scene.open_online_menu()
 	await process_frame
 	check(is_instance_valid(feature_scene.online_server_edit), "native online screen provides a server URL field")
+	check(feature_scene.DEFAULT_ONLINE_SERVER == "https://besttcgidea-render-server.onrender.com", "native online screen defaults to the fixed Render room server")
 	feature_scene.online_server_address = "https://example.test/"
 	check(feature_scene.signaling_url() == "wss://example.test/signal", "native HTTPS server address converts to secure signaling URL")
 	check(feature_scene.rooms_url() == "https://example.test/rooms", "native server address provides the public room-list URL")

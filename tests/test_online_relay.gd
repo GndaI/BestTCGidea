@@ -1,7 +1,7 @@
 extends SceneTree
 
 const MainScene = preload("res://main.tscn")
-const SERVER := "http://127.0.0.1:24832"
+const LOCAL_SERVER := "http://127.0.0.1:24832"
 
 var host
 var guest
@@ -15,13 +15,16 @@ func _initialize() -> void:
 	call_deferred("run")
 
 func run() -> void:
+	var server_address := OS.get_environment("ONLINE_TEST_SERVER").strip_edges()
+	if server_address.is_empty():
+		server_address = LOCAL_SERVER
 	host = MainScene.instantiate()
 	guest = MainScene.instantiate()
 	root.add_child(host)
 	root.add_child(guest)
 	await process_frame
-	host.online_server_address = SERVER
-	guest.online_server_address = SERVER
+	host.online_server_address = server_address
+	guest.online_server_address = server_address
 	host.public_room_name = "윈도우 통합 시험방"
 	host.create_public_web_room()
 	for _step in range(1600):
