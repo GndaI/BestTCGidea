@@ -859,10 +859,10 @@ func render_main_menu() -> void:
 	logo_column.alignment = BoxContainer.ALIGNMENT_CENTER
 	logo_column.add_theme_constant_override("separation", 2)
 	logo_panel.add_child(logo_column)
-	var logo := label_at(logo_column, "TWELVE", TITLE_FONT_SIZE, GOLD)
+	var logo := label_at(logo_column, "최고의TCGidea", TITLE_FONT_SIZE, GOLD)
 	logo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	emphasize_label(logo, 0.42)
-	var subtitle := label_at(logo_column, "최고의 TCG IDEA", BODY_FONT_SIZE, MUTED)
+	var subtitle := label_at(logo_column, "카드 전투 게임", BODY_FONT_SIZE, MUTED)
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	emphasize_label(subtitle, 0.24)
 
@@ -1359,7 +1359,7 @@ func render_account() -> void:
 	summary_panel.add_child(summary)
 	var avatar := label_at(summary, "●", 92, Color("8fa7c3"))
 	avatar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var account_title := label_at(summary, "TWELVE 계정", MENU_FONT_SIZE, GOLD)
+	var account_title := label_at(summary, "최고의TCGidea 계정", MENU_FONT_SIZE, GOLD)
 	account_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	emphasize_label(account_title, 0.35)
 	var account_subtitle := label_at(summary, "하나의 계정으로 언제 어디서나\n플레이를 이어가세요.", 20, MUTED)
@@ -4661,7 +4661,7 @@ func restart_game() -> void:
 
 func show_rules() -> void:
 	var dialog := AcceptDialog.new()
-	dialog.title = "TWELVE · 최신 규칙"
+	dialog.title = "최고의TCGidea · 최신 규칙"
 	dialog.min_size = Vector2i(700, 600)
 	var text_view := RichTextLabel.new()
 	text_view.custom_minimum_size = Vector2(780, 600)

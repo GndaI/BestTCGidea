@@ -21,7 +21,7 @@ func run() -> void:
 	check("multichannel_signed_distance_field=false" in font_import_settings and "oversampling=2.0" in font_import_settings, "web fonts use color-safe high-resolution rasterization instead of artifact-prone multichannel distance fields")
 	var emphasis_probe := Label.new()
 	scene.emphasize_label(emphasis_probe, 0.42)
-	check(emphasis_probe.get_theme_constant("outline_size") == 0 and emphasis_probe.get_theme_constant("shadow_offset_x") == 1 and emphasis_probe.get_theme_constant("shadow_offset_y") == 2, "emphasized text such as TWELVE uses an offset shadow instead of an intrusive outline")
+	check(emphasis_probe.get_theme_constant("outline_size") == 0 and emphasis_probe.get_theme_constant("shadow_offset_x") == 1 and emphasis_probe.get_theme_constant("shadow_offset_y") == 2, "emphasized text such as the game title uses an offset shadow instead of an intrusive outline")
 	emphasis_probe.queue_free()
 	scene.effects_enabled = false
 	scene.ai_enabled = false
@@ -234,6 +234,12 @@ func run() -> void:
 	var feature_scene = load("res://main.tscn").instantiate()
 	root.add_child(feature_scene)
 	await process_frame
+	var game_title_visible := false
+	for title_label in feature_scene.root.find_children("*", "Label", true, false):
+		if (title_label as Label).text == "최고의TCGidea":
+			game_title_visible = true
+			break
+	check(game_title_visible, "main menu shows the current 최고의TCGidea name")
 	check(feature_scene.join_address.begins_with("ws://"), "web edition defaults to a WebSocket server URL")
 	feature_scene.open_patch_notes()
 	await process_frame

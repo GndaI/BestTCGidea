@@ -1,10 +1,10 @@
-# 최고의 TCG IDEA — TWELVE
+# 최고의TCGidea
 
 Godot 4.7 카드 전투 게임. **Windows 실행판을 기본 배포판**으로 사용하며, 같은 원본에서 웹판도 보조로 만들 수 있습니다.
 
 ## Windows 실행판 만들기 — 기본
 
-Godot에서 이 폴더의 `project.godot`을 연 뒤 `프로젝트 > 내보내기`에서 `Windows Desktop`을 선택해 내보냅니다. 기본 결과는 `build/windows/TWELVE.exe`이며 게임 데이터는 실행 파일 안에 포함됩니다.
+Godot에서 이 폴더의 `project.godot`을 연 뒤 `프로젝트 > 내보내기`에서 `Windows Desktop`을 선택해 내보냅니다. 기본 결과는 바탕 화면의 `최고의TCGidea.exe`이며 게임 데이터는 실행 파일 안에 포함됩니다.
 
 친구에게 배포할 때에는 실행 파일을 ZIP으로 묶어 GitHub의 Releases에 올립니다. `build/`는 자동 생성 결과이므로 Git 저장소에는 포함하지 않습니다. 실행판의 온라인 화면에서는 서버 주소를 입력할 수 있으며, 입력한 주소는 해당 컴퓨터에 저장됩니다.
 
