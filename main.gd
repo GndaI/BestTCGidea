@@ -3,6 +3,7 @@ extends Control
 const TCGSoundFXScript = preload("res://sound_fx.gd")
 const RoomSignalingScript = preload("res://room_signaling.gd")
 const SupabaseAuthScript = preload("res://supabase_auth.gd")
+const CloudDecksScript = preload("res://cloud_decks.gd")
 const PatchNotesData = preload("res://patch_notes.gd")
 const PATCH_NOTES := PatchNotesData.ENTRIES
 const UI_FONT = preload("res://assets/fonts/NotoSansKR-Variable.ttf")
@@ -156,6 +157,7 @@ var current_room_name := ""
 var local_lobby_ready := false
 var remote_lobby_ready := false
 var account_auth: Node
+var cloud_decks: Node
 var account_mode := "login"
 var account_email_text := ""
 var account_password_text := ""
@@ -164,6 +166,8 @@ var account_nickname_text := ""
 var account_remember := true
 var account_busy := false
 var account_notice := ""
+var cloud_deck_notice := "로컬 덱을 사용하고 있습니다."
+var cloud_deck_syncing := false
 var saved_decks: Array = []
 var deck_name_text := ""
 var deck_library_mode := "manage"
@@ -702,6 +706,11 @@ func _ready() -> void:
 	account_auth = SupabaseAuthScript.new()
 	account_auth.auth_finished.connect(_on_account_auth_finished)
 	add_child(account_auth)
+	cloud_decks = CloudDecksScript.new()
+	cloud_decks.configure(DEFAULT_ONLINE_SERVER)
+	cloud_decks.sync_finished.connect(_on_cloud_deck_sync_finished)
+	cloud_decks.save_finished.connect(_on_cloud_deck_save_finished)
+	add_child(cloud_decks)
 	account_auth.restore_session()
 	room_list_request = HTTPRequest.new()
 	room_list_request.timeout = 75.0
@@ -1480,7 +1489,7 @@ func _render_signed_in_account(parent: VBoxContainer) -> void:
 	var email_label := label_at(parent, account_auth.user_email(), 19, MUTED)
 	email_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_account_benefit(parent, "▣", "저장된 덱", "%d개의 사용자 덱이 이 기기에 있습니다." % saved_decks.size())
-	_account_benefit(parent, "↻", "클라우드 동기화", "덱 저장 연동은 다음 단계에서 연결합니다.")
+	_account_benefit(parent, "↻", "클라우드 동기화", cloud_deck_notice)
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	parent.add_child(spacer)
@@ -1554,18 +1563,54 @@ func _on_account_auth_finished(action: String, ok: bool, _payload: Dictionary, m
 		account_notice = message
 	elif action == "signup":
 		if account_auth.is_signed_in():
-			account_notice = "회원가입과 로그인이 완료되었습니다."
+			account_notice = "회원가입과 로그인이 완료되었습니다. 덱을 동기화합니다."
+			_sync_account_decks()
 		else:
 			account_mode = "login"
 			account_password_text = ""
 			account_password_confirm_text = ""
 			account_notice = "인증 메일을 보냈습니다. 이메일 인증 후 로그인해주세요."
 	elif action in ["signin", "refresh"]:
-		account_notice = "로그인했습니다."
+		account_notice = "로그인했습니다. 덱을 동기화합니다."
+		_sync_account_decks()
 	elif action == "recover":
 		account_notice = "비밀번호 재설정 메일을 보냈습니다."
 	elif action == "signout":
 		account_notice = "로그아웃했습니다."
+		cloud_decks.cancel()
+		cloud_deck_syncing = false
+		cloud_deck_notice = "로그인하면 클라우드 덱을 불러옵니다."
+	if start_screen and start_page == "account":
+		render()
+
+func _sync_account_decks() -> void:
+	if account_auth == null or cloud_decks == null or not account_auth.is_signed_in():
+		return
+	cloud_deck_syncing = true
+	cloud_deck_notice = "클라우드 덱을 확인하는 중…"
+	cloud_decks.sync(saved_decks, account_auth.access_token(), account_auth.user_id())
+
+func _on_cloud_deck_sync_finished(ok: bool, decks_value: Array, message: String) -> void:
+	cloud_deck_syncing = false
+	if ok:
+		var valid_decks: Array = []
+		for entry in decks_value:
+			if valid_decks.size() >= MAX_CUSTOM_DECKS:
+				break
+			if entry is Dictionary and _valid_saved_deck_structure(entry.get("cards", [])):
+				valid_decks.append({"name": str(entry.get("name", "이름 없는 덱")), "cards": entry.cards.duplicate(true)})
+		saved_decks = valid_decks
+		_write_saved_decks(false)
+		cloud_deck_notice = message
+		account_notice = message
+	else:
+		cloud_deck_notice = "%s 로컬 덱은 그대로 유지됩니다." % message
+		account_notice = cloud_deck_notice
+	if start_screen and start_page in ["account", "decks"]:
+		render()
+
+func _on_cloud_deck_save_finished(ok: bool, message: String) -> void:
+	cloud_deck_notice = message if ok else "%s 로컬에는 저장되었습니다." % message
 	if start_screen and start_page == "account":
 		render()
 
@@ -2914,8 +2959,15 @@ func ai_step() -> void:
 
 func _load_saved_decks() -> void:
 	saved_decks.clear()
-	if not FileAccess.file_exists(SAVED_DECKS_PATH): return
-	var file := FileAccess.open(SAVED_DECKS_PATH, FileAccess.READ)
+	var load_path := SAVED_DECKS_PATH
+	var imported_legacy := false
+	if not FileAccess.file_exists(load_path):
+		var legacy_path := OS.get_user_data_dir().get_base_dir().path_join("TWELVE").path_join("saved_decks.json")
+		if not FileAccess.file_exists(legacy_path):
+			return
+		load_path = legacy_path
+		imported_legacy = true
+	var file := FileAccess.open(load_path, FileAccess.READ)
 	if file == null: return
 	var parsed = JSON.parse_string(file.get_as_text())
 	if not (parsed is Dictionary): return
@@ -2923,11 +2975,16 @@ func _load_saved_decks() -> void:
 		if saved_decks.size() >= MAX_CUSTOM_DECKS: break
 		if entry is Dictionary and _valid_saved_deck_structure(entry.get("cards", [])):
 			saved_decks.append({"name": str(entry.get("name", "이름 없는 덱")), "cards": entry.cards.duplicate(true)})
+	if imported_legacy and not saved_decks.is_empty():
+		_write_saved_decks(false)
 
-func _write_saved_decks() -> bool:
+func _write_saved_decks(sync_cloud: bool = true) -> bool:
 	var file := FileAccess.open(SAVED_DECKS_PATH, FileAccess.WRITE)
 	if file == null: return false
 	file.store_string(JSON.stringify({"version": 1, "decks": saved_decks}, "  "))
+	if sync_cloud and account_auth != null and cloud_decks != null and account_auth.is_signed_in():
+		cloud_decks.queue_save(saved_decks, account_auth.access_token(), account_auth.user_id())
+		cloud_deck_notice = "변경한 덱을 클라우드에 저장하는 중…"
 	return true
 
 func _empty_deck() -> Array:

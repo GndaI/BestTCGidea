@@ -23,6 +23,13 @@ func is_configured() -> bool:
 func is_signed_in() -> bool:
 	return not str(session.get("access_token", "")).is_empty() and session.get("user", {}) is Dictionary
 
+func access_token() -> String:
+	return str(session.get("access_token", ""))
+
+func user_id() -> String:
+	var user = session.get("user", {})
+	return str(user.get("id", "")) if user is Dictionary else ""
+
 func user_email() -> String:
 	var user = session.get("user", {})
 	return str(user.get("email", "")) if user is Dictionary else ""
@@ -94,7 +101,8 @@ func _start_request(action: String, path: String, body: Dictionary, bearer: Stri
 func _on_request_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 	var action := current_action
 	current_action = ""
-	var parsed = JSON.parse_string(body.get_string_from_utf8())
+	var response_text := body.get_string_from_utf8()
+	var parsed = JSON.parse_string(response_text) if not response_text.is_empty() else {}
 	var payload: Dictionary = parsed if parsed is Dictionary else {}
 	var ok := result == HTTPRequest.RESULT_SUCCESS and response_code >= 200 and response_code < 300
 	if not ok:
