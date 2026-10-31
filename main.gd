@@ -1,10 +1,10 @@
 extends Control
 
-const TCGSoundFXScript = preload("res://sound_fx.gd")
-const RoomSignalingScript = preload("res://room_signaling.gd")
-const SupabaseAuthScript = preload("res://supabase_auth.gd")
-const CloudDecksScript = preload("res://cloud_decks.gd")
-const PatchNotesData = preload("res://patch_notes.gd")
+const TCGSoundFXScript = preload("res://effects/sound_fx.gd")
+const RoomSignalingScript = preload("res://online/room_signaling.gd")
+const SupabaseAuthScript = preload("res://online/account/supabase_auth.gd")
+const CloudDecksScript = preload("res://online/cloud_decks.gd")
+const PatchNotesData = preload("res://ui/patch_notes.gd")
 const PATCH_NOTES := PatchNotesData.ENTRIES
 const UI_FONT = preload("res://assets/fonts/NotoSansKR-Variable.ttf")
 const BG := Color("0c1424")
@@ -4722,7 +4722,7 @@ func show_rules() -> void:
 	dialog.min_size = Vector2i(700, 600)
 	var text_view := RichTextLabel.new()
 	text_view.custom_minimum_size = Vector2(780, 600)
-	text_view.text = FileAccess.get_file_as_string("res://RULEBOOK.md")
+	text_view.text = FileAccess.get_file_as_string("res://docs/RULEBOOK.md")
 	text_view.add_theme_font_size_override("normal_font_size", 18)
 	dialog.add_child(text_view)
 	add_child(dialog)

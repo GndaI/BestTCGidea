@@ -46,7 +46,7 @@ func run() -> void:
 	var test_sound: AudioStreamWAV = scene.sound_fx._make_tone(440.0, 0.05, "sine", 0.0, 0.0)
 	check(test_sound.data.size() > 0, "procedural game sound is generated")
 	check(scene._event_target_view({"kind":"roulette", "target":[]}) == null, "fieldless gambler-spell roulette safely uses the screen center")
-	check(FileAccess.file_exists("res://카드-템플릿.md"), "copy-ready card template exists")
+	check(FileAccess.file_exists("res://docs/CARD-TEMPLATE.md"), "copy-ready card template exists")
 	var centered_name_card := TCGCardView.new()
 	centered_name_card.configure(TCGCards.by_id("healer"))
 	root.add_child(centered_name_card)

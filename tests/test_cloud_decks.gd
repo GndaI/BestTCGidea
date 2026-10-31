@@ -1,6 +1,6 @@
 extends SceneTree
 
-const CloudDecksScript = preload("res://cloud_decks.gd")
+const CloudDecksScript = preload("res://online/cloud_decks.gd")
 const URL := "http://127.0.0.1:24833"
 const TEST_STATE := "user://test_cloud_deck_state.json"
 
