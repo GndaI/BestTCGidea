@@ -4,9 +4,9 @@
 /build/
 /server/node_modules/
 /server/*.log
-/tests/*.log
-/tests/*.png
-/tests/*.png.import
+/tests/**/*.log
+/tests/**/*.png
+/tests/**/*.png.import
 /public-address.txt
 
 # Godot generated files and exports
