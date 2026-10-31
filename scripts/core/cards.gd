@@ -21,11 +21,11 @@ static func is_banned(id: String) -> bool:
 
 static func by_id(id: String) -> Dictionary:
 	if id in ["token_guard", "token_six", "skipped"]:
-		var handler = load("res://cards/effects/card_effect.gd").new()
+		var handler = load("res://assets/cards/effects/card_effect.gd").new()
 		return {"id": id, "name": {"token_guard": "악마의 수호자", "token_six": "악마의 하수인", "skipped": "건너뛴 단계"}[id], "tier": 6 if id != "skipped" else 4, "power": 6 if id == "token_six" else 0, "health": 6 if id == "token_six" else 1, "rules": "지속 - 아군 갬블의 악마는 피해를 받지 않는다." if id == "token_guard" else "", "spell_text": "", "ability": "", "cost": 0, "target": "", "spell": "", "effect_handler": handler}
 	if id in CARD_IDS:
 		if not cache.has(id):
-			cache[id] = load("res://cards/effects/%s.gd" % id).new().card_data()
+			cache[id] = load("res://assets/cards/effects/%s.gd" % id).new().card_data()
 		return cache[id].duplicate(true)
 	return {}
 

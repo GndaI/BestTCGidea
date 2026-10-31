@@ -1,10 +1,10 @@
 extends Control
 
-const TCGSoundFXScript = preload("res://scripts/effects/sound_fx.gd")
+const TCGSoundFXScript = preload("res://assets/effects/sound_fx.gd")
 const RoomSignalingScript = preload("res://scripts/online/room_signaling.gd")
 const SupabaseAuthScript = preload("res://scripts/online/account/supabase_auth.gd")
 const CloudDecksScript = preload("res://scripts/online/cloud_decks.gd")
-const PatchNotesData = preload("res://ui/patch_notes.gd")
+const PatchNotesData = preload("res://assets/ui/patch_notes.gd")
 const PATCH_NOTES := PatchNotesData.ENTRIES
 const UI_FONT = preload("res://assets/fonts/NotoSansKR-Variable.ttf")
 const BG := Color("0c1424")
@@ -888,8 +888,8 @@ func render_main_menu() -> void:
 	canvas.add_child(account)
 
 	var photo_specs := [
-		{"path": "res://ui/images/main_left.jpg", "left": 0.035, "right": 0.255},
-		{"path": "res://ui/images/main_right.jpg", "left": 0.745, "right": 0.965},
+		{"path": "res://assets/ui/images/main_left.jpg", "left": 0.035, "right": 0.255},
+		{"path": "res://assets/ui/images/main_right.jpg", "left": 0.745, "right": 0.965},
 	]
 	for photo_spec in photo_specs:
 		var photo_frame := PanelContainer.new()
