@@ -33,7 +33,7 @@ project.godot을 Godot으로 열고 F5를 누릅니다. PvE는 기존 랜덤 AI(
 - 악마 룰렛 5번의 피해 대상은 목록이 아니라 중앙 제단의 악마를 필드 카드로 드래그해 지정합니다.
 - 파괴 후 악마의 판은 높이가 불규칙한 9칸이 가로 광선으로 연결된 형태가 됩니다. 소환수는 빈칸부터 채우며, 9칸이 모두 차면 더 소환할 수 없습니다.
 - 연출 중에는 입력/AI/자동 넘김이 기다립니다. 추가 주사위도 하나씩 룰렛과 효과를 순서대로 적용하며, 소환 하수인은 차례로 나타납니다.
-- 초상화는 `game/cards/images/<카드 ID>.png` 또는 `.jpg`를 사용합니다. 새 카드용 그림이 없으면 기존 프레임만 표시합니다.
+- 초상화는 `src/assets/cards/<카드 ID>.png` 또는 `.jpg`를 사용합니다. 새 카드용 그림이 없으면 기존 프레임만 표시합니다.
 
 ## 반영된 규칙
 
@@ -86,18 +86,18 @@ Render 서버는 플레이어 컴퓨터와 별도로 실행되므로 다른 와�
 
 ## 코드와 검증
 
-- `game/scenes/`: 시작 장면과 현재 화면 전환 코드
-- `game/core/battle.gd`: 전투·체인·부활·주사위 처리
-- `game/cards/catalog.gd`: 카드 목록과 조회
-- `game/cards/effects/`: 개별 카드 수치·텍스트와 공통 카드 훅
-- `game/cards/images/`: 카드 그림
-- `game/ai/`: 쉬움·강함 AI
-- `game/ui/`: UI 구성 요소, 화면 코드와 이미지
-- `game/effects/visual/`: 일반 전투 시각 연출
-- `game/effects/gamble/`: 갬블의 악마 전용 연출
-- `game/effects/sound/`: 소리 연출
-- `game/online/`: 방 연결, 클라우드 덱, 계정
-- `game/shared/`: 공통 글꼴과 게임 아이콘
+- `src/scenes/`: 시작 장면과 현재 화면 전환 코드
+- `src/core/battle.gd`: 전투·체인·부활·주사위 처리
+- `src/cards/catalog.gd`: 카드 목록과 조회
+- `src/cards/effects/`: 개별 카드 수치·텍스트와 공통 카드 훅
+- `src/assets/cards/`: 카드 그림
+- `src/ai/`: 쉬움·강함 AI
+- `src/ui/`: UI 구성 요소와 화면 코드
+- `src/effects/visual/`: 일반 전투 시각 연출
+- `src/effects/gamble/`: 갬블의 악마 전용 연출
+- `src/effects/sound/`: 소리 연출
+- `src/online/`: 방 연결, 클라우드 덱, 계정
+- `src/assets/`: 카드·UI 그림, 글꼴, 아이콘과 소리 파일
 
 문서 위치와 보관 기준은 [docs/README.md](docs/README.md)와 [archive/README.md](archive/README.md)를 참고합니다.
 

@@ -89,7 +89,7 @@ func run() -> void:
 	check(ai_spell_count > 0, "AI actually casts spells")
 	check(ai_ability_count > 0, "AI actually uses abilities")
 	# UI input path: click the spell card, then choose a board target.
-	var scene = load("res://game/scenes/main.tscn").instantiate()
+	var scene = load("res://src/scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	scene.auto_pass = false

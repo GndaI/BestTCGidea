@@ -13,11 +13,11 @@ func check(value: bool, title: String) -> void:
 		push_error("FAIL: " + title)
 
 func run() -> void:
-	var scene = load("res://game/scenes/main.tscn").instantiate()
+	var scene = load("res://src/scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	check(scene.theme.get_constant("outline_size", "Label") == 0 and scene.theme.get_constant("outline_size", "Button") == 0, "ordinary labels and buttons avoid black outlines that fill counters and Latin letter interiors")
-	var font_import_settings := FileAccess.get_file_as_string("res://game/shared/fonts/NotoSansKR-Variable.ttf.import")
+	var font_import_settings := FileAccess.get_file_as_string("res://src/assets/fonts/NotoSansKR-Variable.ttf.import")
 	check("multichannel_signed_distance_field=false" in font_import_settings and "oversampling=2.0" in font_import_settings, "web fonts use color-safe high-resolution rasterization instead of artifact-prone multichannel distance fields")
 	var emphasis_probe := Label.new()
 	scene.emphasize_label(emphasis_probe, 0.42)
@@ -201,7 +201,7 @@ func run() -> void:
 	scene.render()
 	await process_frame
 	var packed: Dictionary = scene._pack_online_state()
-	var replica = load("res://game/scenes/main.tscn").instantiate()
+	var replica = load("res://src/scenes/main.tscn").instantiate()
 	root.add_child(replica)
 	await process_frame
 	replica._restore_online_state(packed)
@@ -231,7 +231,7 @@ func run() -> void:
 		root.get_texture().get_image().save_png("res://tests/rulebook-dialog.png")
 	scene.queue_free()
 	await process_frame
-	var feature_scene = load("res://game/scenes/main.tscn").instantiate()
+	var feature_scene = load("res://src/scenes/main.tscn").instantiate()
 	root.add_child(feature_scene)
 	await process_frame
 	var game_title_visible := false

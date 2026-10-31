@@ -9,7 +9,7 @@ func run() -> void:
 	var mode := "client"
 	for argument in OS.get_cmdline_user_args():
 		if argument == "--host": mode = "host"
-	var scene = load("res://game/scenes/main.tscn").instantiate()
+	var scene = load("res://src/scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	if mode == "host":

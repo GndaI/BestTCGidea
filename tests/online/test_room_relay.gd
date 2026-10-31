@@ -1,6 +1,6 @@
 extends SceneTree
 
-const RoomRelay = preload("res://game/online/rooms/room_signaling.gd")
+const RoomRelay = preload("res://src/online/rooms/room_signaling.gd")
 const URL := "ws://127.0.0.1:24832/signal"
 
 var host

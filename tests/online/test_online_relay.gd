@@ -1,6 +1,6 @@
 extends SceneTree
 
-const MainScene = preload("res://game/scenes/main.tscn")
+const MainScene = preload("res://src/scenes/main.tscn")
 const LOCAL_SERVER := "http://127.0.0.1:24832"
 
 var host
