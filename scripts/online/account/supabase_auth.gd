@@ -3,7 +3,7 @@ extends Node
 
 signal auth_finished(action: String, ok: bool, payload: Dictionary, message: String)
 
-const Config = preload("res://online/account/supabase_config.gd")
+const Config = preload("res://scripts/online/account/supabase_config.gd")
 const SESSION_PATH := "user://supabase_session.json"
 
 var request: HTTPRequest

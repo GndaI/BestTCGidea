@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b16aaaw1weiqh"
-path="res://.godot/imported/gambler.png-e6df1303602a764e75f15ed7a7d61360.ctex"
+uid="uid://dfggw32tsokqu"
+path="res://.godot/imported/main_left.jpg-5acadf798c87e2e86fadb3f334c83b6c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/cards/gambler.png"
-dest_files=["res://.godot/imported/gambler.png-e6df1303602a764e75f15ed7a7d61360.ctex"]
+source_file="res://ui/images/main_left.jpg"
+dest_files=["res://.godot/imported/main_left.jpg-5acadf798c87e2e86fadb3f334c83b6c.ctex"]
 
 [params]
 

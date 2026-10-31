@@ -128,7 +128,7 @@ func _ready() -> void:
 func _add_portrait() -> void:
 	var image_path := str(card.get("portrait", ""))
 	if image_path.is_empty():
-		var base_path := "res://assets/cards/%s" % card.get("id", "")
+		var base_path := "res://cards/images/%s" % card.get("id", "")
 		image_path = base_path + ".png"
 		if not FileAccess.file_exists(ProjectSettings.globalize_path(image_path)) and FileAccess.file_exists(ProjectSettings.globalize_path(base_path + ".jpg")):
 			image_path = base_path + ".jpg"
@@ -368,7 +368,7 @@ func _draw() -> void:
 			for mark_y in [50.0, 76.0, 102.0]:
 				draw_polyline(PackedVector2Array([Vector2(side_x, mark_y), Vector2(side_x + direction * 8.0, mark_y + 8.0), Vector2(side_x, mark_y + 16.0)]), Color("a99655"), 2, true)
 	else:
-		# Empty art wells have a subtle colored fallback; drop a same-id PNG into assets/cards to replace it.
+		# Empty art wells have a subtle colored fallback; drop a same-id PNG into cards/images to replace it.
 		plate(picture_rect, tint.darkened(0.72), Color("8c9c86"), 6)
 	if portrait == null:
 		var art_center := Vector2(100, picture_rect.position.y + 56.0)

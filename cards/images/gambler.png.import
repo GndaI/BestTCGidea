@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cux4d47pm35x6"
-path="res://.godot/imported/potato.jpg-6f02ad006718299b4b8911942d0dcffd.ctex"
+uid="uid://b16aaaw1weiqh"
+path="res://.godot/imported/gambler.png-a030fca56f5a774f8443e76b03e638b7.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/cards/potato.jpg"
-dest_files=["res://.godot/imported/potato.jpg-6f02ad006718299b4b8911942d0dcffd.ctex"]
+source_file="res://cards/images/gambler.png"
+dest_files=["res://.godot/imported/gambler.png-a030fca56f5a774f8443e76b03e638b7.ctex"]
 
 [params]
 
