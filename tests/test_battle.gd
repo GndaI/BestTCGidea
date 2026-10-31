@@ -142,7 +142,7 @@ func run() -> void:
 	for seed_value in range(18):
 		play_match(seed_value)
 	# Build all UI phases to catch runtime and signal construction errors.
-	var scene = load("res://main.tscn").instantiate()
+	var scene = load("res://scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	scene.begin_game()

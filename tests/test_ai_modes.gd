@@ -6,7 +6,7 @@ func _initialize() -> void:
 func run() -> void:
 	var failures := 0
 	var checks := 0
-	var scene = load("res://main.tscn").instantiate()
+	var scene = load("res://scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 

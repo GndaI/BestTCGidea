@@ -26,7 +26,7 @@ func wait_for_effects(scene: Control, timeout: float = 8.0) -> void:
 	check(not scene.playing_effects, "animation finishes within time limit")
 
 func run() -> void:
-	var scene = load("res://main.tscn").instantiate()
+	var scene = load("res://scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	scene.ai_enabled = false

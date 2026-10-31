@@ -13,7 +13,7 @@ func check(value: bool, title: String) -> void:
 		push_error("FAIL: " + title)
 
 func run() -> void:
-	var scene = load("res://main.tscn").instantiate()
+	var scene = load("res://scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	check(scene.theme.get_constant("outline_size", "Label") == 0 and scene.theme.get_constant("outline_size", "Button") == 0, "ordinary labels and buttons avoid black outlines that fill counters and Latin letter interiors")
@@ -201,7 +201,7 @@ func run() -> void:
 	scene.render()
 	await process_frame
 	var packed: Dictionary = scene._pack_online_state()
-	var replica = load("res://main.tscn").instantiate()
+	var replica = load("res://scenes/main.tscn").instantiate()
 	root.add_child(replica)
 	await process_frame
 	replica._restore_online_state(packed)
@@ -231,7 +231,7 @@ func run() -> void:
 		root.get_texture().get_image().save_png("res://tests/rulebook-dialog.png")
 	scene.queue_free()
 	await process_frame
-	var feature_scene = load("res://main.tscn").instantiate()
+	var feature_scene = load("res://scenes/main.tscn").instantiate()
 	root.add_child(feature_scene)
 	await process_frame
 	var game_title_visible := false

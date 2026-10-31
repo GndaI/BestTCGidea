@@ -10,7 +10,7 @@ func check(value: bool, title: String) -> void:
 		push_error(title)
 
 func run() -> void:
-	var scene = load("res://main.tscn").instantiate()
+	var scene = load("res://scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	scene.auto_pass = false

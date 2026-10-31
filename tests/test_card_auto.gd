@@ -10,7 +10,7 @@ func check(condition: bool, message: String) -> void:
 		push_error(message)
 
 func run() -> void:
-	var scene = load("res://main.tscn").instantiate()
+	var scene = load("res://scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	check(is_equal_approx(scene.auto_timer.wait_time, 1.0), "automatic empty action waits one second")

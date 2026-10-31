@@ -4,7 +4,7 @@ func _initialize() -> void:
 	call_deferred("capture")
 
 func capture() -> void:
-	var scene = load("res://main.tscn").instantiate()
+	var scene = load("res://scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	scene.auto_pass = false
