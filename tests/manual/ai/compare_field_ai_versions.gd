@@ -1,6 +1,6 @@
 extends SceneTree
 
-const LegacyFieldAI = preload("res://tests/ai/legacy_field_ai.gd")
+const LegacyFieldAI = preload("res://tests/manual/ai/legacy_field_ai.gd")
 const MATCH_LIMIT := 16000
 
 func _initialize() -> void:

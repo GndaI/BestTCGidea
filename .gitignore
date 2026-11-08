@@ -8,6 +8,10 @@
 /tests/**/*.png
 /tests/**/*.png.import
 /public-address.txt
+/export_templates/
+/feature_profiles/
+/script_templates/
+/text_editor_themes/
 
 # Godot generated files and exports
 .import/

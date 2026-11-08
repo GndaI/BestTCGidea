@@ -86,18 +86,25 @@ Render 서버는 플레이어 컴퓨터와 별도로 실행되므로 다른 와�
 
 ## 코드와 검증
 
-- `src/scenes/`: 시작 장면과 현재 화면 전환 코드
-- `src/core/battle.gd`: 전투·체인·부활·주사위 처리
-- `src/cards/catalog.gd`: 카드 목록과 조회
-- `src/cards/effects/`: 개별 카드 수치·텍스트와 공통 카드 훅
-- `src/assets/cards/`: 카드 그림
-- `src/ai/`: 쉬움·강함 AI
-- `src/ui/`: UI 구성 요소와 화면 코드
-- `src/effects/visual/`: 일반 전투 시각 연출
-- `src/effects/gamble/`: 갬블의 악마 전용 연출
-- `src/effects/sound/`: 소리 연출
-- `src/online/`: 방 연결, 클라우드 덱, 계정
-- `src/assets/`: 카드·UI 그림, 글꼴, 아이콘과 소리 파일
+```text
+src/       게임 코드, 장면과 실제 사용 에셋
+tests/     규칙·UI·AI·온라인 자동 검사
+server/    Render 및 로컬 멀티플레이 중계 서버
+docs/      현행 규칙, 카드 양식과 실행 안내
+archive/   현재 게임에서 사용하지 않는 과거 자료와 원본
+build/     내보낸 실행판과 웹판(자동 생성, Git 제외)
+```
+
+`src/` 안에서는 담당 기능을 기준으로 나눕니다.
+
+- `scenes/`: 시작 장면과 장면에 연결된 중심 코드
+- `core/`: 카드 종류와 관계없는 전투 규칙
+- `cards/`: 카드 목록과 카드별 효과 코드
+- `ui/`: 화면과 재사용 UI 구성 요소
+- `effects/`: 시각·소리·갬블 전용 연출 코드
+- `ai/`: 쉬움·강함 AI 판단
+- `online/`: 방 연결, 클라우드 덱과 계정
+- `assets/`: 카드·UI 그림, 글꼴, 아이콘과 향후 추가할 소리 파일
 
 문서 위치와 보관 기준은 [docs/README.md](docs/README.md)와 [archive/README.md](archive/README.md)를 참고합니다.
 
@@ -105,9 +112,7 @@ Render 서버는 플레이어 컴퓨터와 별도로 실행되므로 다른 와�
 ```powershell
 godot --headless --path . --script res://tests/rules/test_rulebook.gd
 godot --headless --path . --script res://tests/ui/test_rulebook_ui.gd
-godot --headless --path . --script res://tests/ui/test_deck_gamble_ui.gd
 ```
 
 test_rulebook은 개별 효과와 일반 덱 자동 대전을 검사합니다. 무제한 소환 때문에 악마는 개별 주사위 효과로 검사하며 일반 덱의 종료 검사에서는 제외합니다.
-test_deck_gamble_ui는 덱 설명 유지/선택 표시/완성 덱 갱신, 악마 중앙 배치, 룰렛 결과와 적용 시점, 소환 위치와 가로 확장/스크롤 유지, 연출 중 자동 행동 정지와 온라인 룰렛 상태 전달을 검사합니다.
-기존 test_battle/test_spells_ai/test_effects 등의 일부 기대값은 구버전 카드 기준이므로 최신 규칙 검증에는 위 검사를 사용합니다.
+금지되어 후순위로 미룬 악마 전용 검사와 현행 규칙에 맞지 않는 구버전 검사는 `archive/tests/`에 보존합니다.
