@@ -16,6 +16,7 @@ func run() -> void:
 	var scene = load("res://src/scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
+	check(is_instance_valid(scene.find_child("ResultOverlay", true, false)), "battle result overlay is an independent scene")
 	check(scene.theme.get_constant("outline_size", "Label") == 0 and scene.theme.get_constant("outline_size", "Button") == 0, "ordinary labels and buttons avoid black outlines that fill counters and Latin letter interiors")
 	var font_import_settings := FileAccess.get_file_as_string("res://src/assets/fonts/NotoSansKR-Variable.ttf.import")
 	check("multichannel_signed_distance_field=false" in font_import_settings and "oversampling=2.0" in font_import_settings, "web fonts use color-safe high-resolution rasterization instead of artifact-prone multichannel distance fields")
@@ -28,6 +29,7 @@ func run() -> void:
 	scene.auto_pass = false
 	scene.start_screen = false
 	scene.render()
+	check(is_instance_valid(scene.root.find_child("DraftScreen", true, false)), "deck construction is mounted as its own scene")
 	check(is_equal_approx(scene.FIELD_CARD_ASPECT, 1.4), "battle field cards use the same 200 by 280 aspect ratio as their internal layout")
 	check(TCGCardView.POWER_GEM_CENTER == Vector2(40, 240) and TCGCardView.MANA_GEM_CENTER == Vector2(100, 240) and TCGCardView.HEALTH_GEM_CENTER == Vector2(160, 240), "battle card stats and mana share one centered bottom row")
 	check(is_equal_approx(TCGCardView.STAT_GEM_RADIUS, 27.0), "production stays compact while leaving room for two-digit values")
@@ -38,6 +40,7 @@ func run() -> void:
 	field_shape_card.queue_free()
 	check(scene.decks[0].size() == 6, "six pairs in draft")
 	scene.begin_game()
+	check(is_instance_valid(scene.root.find_child("BattleScreen", true, false)), "battle is mounted as its own scene")
 	var b: TCGBattle = scene.battle
 	check(is_instance_valid(scene.battle_log_badge) and scene.battle_log_badge.visible, "magical battle-log badge stays at the lower right")
 	scene.show_battle_log_popup()
@@ -149,19 +152,42 @@ func run() -> void:
 	check(scene.target_eligible([0,1]), "allied normal spell copy available")
 	scene.cancel_selection()
 	var apprentice := b.make_unit("student")
-	apprentice.mana = 1
+	apprentice.mana = 2
 	b.players[0].units.append(apprentice)
 	b.players[0].used = [TCGCards.by_id("healer")]
 	var apprentice_slot: int = b.players[0].units.size() - 1
 	scene.select_ability(0, apprentice_slot)
+	check(scene.selection.mode == "ability_choice", "a unit with one consume effect still opens the effect-card chooser")
+	scene.render()
+	await process_frame
+	check(scene.overlay_layer.find_children("AbilityChoiceCard_*", "Button", true, false).size() == 1, "single consume effect is shown as one clickable effect card")
+	scene.choose_ability_option(scene.selection.options[0])
 	check(scene.selection.mode == "replay", "apprentice opens used-spell selection")
 	scene._input(right_click)
 	check(scene.selection.is_empty(), "right-click cancels apprentice spell selection")
 	scene.select_ability(0, apprentice_slot)
+	scene.choose_ability_option(scene.selection.options[0])
 	scene.select_replay(TCGCards.by_id("healer"))
 	check(scene.selection.mode == "target", "apprentice proceeds to copied-spell target")
 	scene._input(right_click)
 	check(scene.selection.is_empty(), "right-click cancels apprentice copied-spell target")
+	var healer := b.make_unit("healer")
+	healer.mana = 1
+	b.players[0].units.append(healer)
+	var healer_slot: int = b.players[0].units.size() - 1
+	scene.select_ability(0, healer_slot)
+	scene.render()
+	await process_frame
+	var healer_choices: Array[Node] = scene.overlay_layer.find_children("AbilityChoiceCard_*", "Button", true, false)
+	check(healer_choices.size() == 2, "each consume effect is displayed as its own effect card")
+	check(healer_choices.filter(func(card): return not card.disabled).size() == 1 and healer_choices.filter(func(card): return card.disabled).size() == 1, "effect cards clearly disable choices that cost more mana than the unit has")
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png("res://tests/ability-choice-preview.png")
+	var usable_healer_choice := healer_choices.filter(func(card): return not card.disabled)[0] as Button
+	usable_healer_choice.pressed.emit()
+	check(scene.selection.mode == "target" and scene.selection.effect == "heal2", "clicking an available effect card begins that effect")
+	scene._input(right_click)
 	b.defeat([0,0])
 	b.open_reactions()
 	scene.render()
@@ -225,7 +251,7 @@ func run() -> void:
 		scene.hide_card_preview()
 	scene.show_rules()
 	await process_frame
-	check(scene.find_children("*","AcceptDialog",false,false).size() > 0, "rules dialog opens")
+	check(scene.start_page == "rules" and scene.root.find_child("RulesScreen", true, false) != null, "rules screen opens as an independent scene")
 	if DisplayServer.get_name() != "headless":
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png("res://tests/rulebook-dialog.png")
@@ -241,9 +267,16 @@ func run() -> void:
 			break
 	check(game_title_visible, "main menu shows the current 최고의TCGidea name")
 	check(feature_scene.join_address.begins_with("ws://"), "web edition defaults to a WebSocket server URL")
+	feature_scene.show_settings()
+	await process_frame
+	check(feature_scene.start_page == "settings" and feature_scene.root.find_child("SettingsScreen", true, false) != null, "settings open as an independent scene")
+	feature_scene.back_from_info_screen()
+	await process_frame
+	check(feature_scene.start_page == "home" and feature_scene.root.find_child("MainMenuScreen", true, false) != null, "leaving settings returns to the previous screen")
 	feature_scene.open_patch_notes()
 	await process_frame
 	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("PatchNotesScreen", true, false)), "patch notes are mounted as their own scene")
 	var patch_version_menu: MenuButton = feature_scene.root.find_child("PatchVersionMenu", true, false)
 	var patch_notes_scroll: ScrollContainer = feature_scene.root.find_child("PatchNotesScroll", true, false)
 	check(is_instance_valid(patch_version_menu) and patch_version_menu.get_popup().item_count == feature_scene.PATCH_NOTES.size(), "patch notes provide a fixed version finder with every released version")
@@ -291,8 +324,11 @@ func run() -> void:
 			break
 	check(is_instance_valid(potato_name_label) and potato_name_label.get_theme_color("font_color") == Color("c8b6ff"), "patch-note card names use a distinct lavender color")
 	check(is_instance_valid(potato_name_label) and not potato_name_label.get_parent() is HBoxContainer, "patch-note status markers sit beside change details instead of card names")
+	# Keep the account-form checks independent from a developer's saved login without deleting that saved session.
+	feature_scene.account_auth.session.clear()
 	feature_scene.open_account()
 	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("AccountScreenScene", true, false)), "account is mounted as its own scene")
 	check(is_instance_valid(feature_scene.root.find_child("AccountScreen", true, false)), "account button opens a dedicated full account screen")
 	check(is_instance_valid(feature_scene.root.find_child("AccountEmailEdit", true, false)) and is_instance_valid(feature_scene.root.find_child("AccountPasswordEdit", true, false)), "account login provides email and password fields")
 	var setup_notice = feature_scene.root.find_child("AccountSetupNotice", true, false)
@@ -311,6 +347,7 @@ func run() -> void:
 	await process_frame
 	feature_scene.open_online_menu()
 	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("OnlineBrowserScreen", true, false)), "online room browser is mounted as its own scene")
 	check(is_instance_valid(feature_scene.root.find_child("OnlineBrowser", true, false)), "online screen provides the public room browser and room creation layout")
 	check(is_instance_valid(feature_scene.root.find_child("PublicRoomNameEdit", true, false)), "online screen provides a public room name field")
 	var online_screen_texts: Array[String] = []
@@ -333,6 +370,7 @@ func run() -> void:
 	feature_scene.drafting = true
 	feature_scene.render()
 	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("OnlineLobbyScreen", true, false)), "online lobby is mounted as its own scene")
 	check(is_instance_valid(feature_scene.root.find_child("OnlineLobby", true, false)), "online connection opens a lobby that shows both players")
 	var start_online_button: Button = feature_scene.root.find_child("StartOnlineDraftButton", true, false)
 	check(is_instance_valid(start_online_button) and start_online_button.disabled, "host cannot start deck selection before the guest is ready")
@@ -345,6 +383,7 @@ func run() -> void:
 	feature_scene.stop_network()
 	feature_scene.open_deck_menu()
 	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("DeckLibraryScreen", true, false)), "deck library is mounted as its own scene")
 	check(is_instance_valid(feature_scene.root.find_child("SavedDeckLibrary", true, false)), "deck screen provides nine-slot saved-deck controls")
 	check(is_instance_valid(feature_scene.root.find_child("BuiltinDefaultDeckSlot", true, false)), "bottom-right slot provides the original default deck")
 	feature_scene.saved_decks = [{"name": "편집 확인", "cards": feature_scene._default_deck()}]
@@ -353,6 +392,7 @@ func run() -> void:
 	check(not feature_scene._valid_online_deck(banned_deck), "decks containing the temporarily banned gambler cannot enter a match")
 	feature_scene.open_deck_editor(0)
 	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("DeckEditorScreen", true, false)), "deck editor is mounted as its own scene")
 	var back_button: Button = feature_scene.root.find_child("BackButton", true, false)
 	check(back_button.position.y == 16.0 and back_button.custom_minimum_size == Vector2(150, 48), "back button sits at the account button height without changing size")
 	check(is_instance_valid(feature_scene.root.find_child("DeckTierFilter6", true, false)), "deck editor puts turn filter buttons beside search")

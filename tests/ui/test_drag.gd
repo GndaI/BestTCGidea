@@ -69,7 +69,10 @@ func run() -> void:
 	check(scene.battle.visual_events[0].source == [0, 0], "resolved damage retains source")
 	scene.render()
 	check(scene.action_button.text.begins_with("턴 종료"), "shared action button becomes turn end with empty chain")
-	check(not scene.begin_drag([0, 0], Vector2.ZERO), "zero mana cannot drag attack")
+	check(scene.begin_drag([0, 0], Vector2.ZERO), "zero mana unit can still be clicked for its ability menu")
+	scene.drag_moved = true
+	scene.finish_drag(target.get_global_rect().get_center())
+	check(scene.battle.stack.is_empty(), "zero mana cannot declare a drag attack")
 	scene.battle.players[0].units[0].mana = 3
 	check(scene.begin_drag([0, 0], Vector2.ZERO), "can prepare cancel test")
 	var escape := InputEventKey.new()

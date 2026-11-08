@@ -1,11 +1,11 @@
 services:
   - type: web
-    name: twelve-room-server
-    runtime: node
-    plan: free
-    region: singapore
-    rootDir: server
-    buildCommand: npm install
-    startCommand: npm start
-    healthCheckPath: /health
-    autoDeployTrigger: commit
+	name: twelve-room-server
+	runtime: node
+	plan: free
+	region: singapore
+	rootDir: server
+	buildCommand: npm install
+	startCommand: npm start
+	healthCheckPath: /health
+	autoDeployTrigger: commit
