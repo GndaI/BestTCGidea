@@ -5,7 +5,7 @@
 - `scenes/screens/`: 메인, 계정, 덱, 온라인, 전투 등 독립 화면 장면
 - `scenes/overlays/`: 전투 결과처럼 화면 위에 표시하는 장면
 - `scenes/controllers/`: 공통 상태와 화면 영역별 동작 코드
-- `core/`: 카드 종류와 관계없는 전투 진행 규칙
+- `battle/`: 카드 종류와 관계없는 전투 진행 규칙
 - `cards/`: 카드 목록과 카드별 효과 코드
 - `ui/components/`: 여러 화면에서 재사용하는 UI 노드
 - `ui/screens/`: 화면에서 공유하는 표시 코드와 패치노트 데이터
