@@ -2,6 +2,7 @@ extends "res://src/scenes/controllers/battle_input_effects_controller.gd"
 
 const AbilityChoiceCardScene = preload("res://src/ui/components/ability_choice_card.tscn")
 var battle_refresh_host: VBoxContainer
+var battle_reaction_hint: Label
 
 func render_battle() -> void:
 	_render_in_screen(BattleScreenScene, _render_battle_content)
@@ -13,10 +14,30 @@ func _render_battle_content() -> void:
 	battle_refresh_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	battle_refresh_host.add_theme_constant_override("separation", 5)
 	root.add_child(battle_refresh_host)
+	battle_reaction_hint = Label.new()
+	battle_reaction_hint.name = "BattleReactionHint"
+	battle_reaction_hint.text = "피해/처치 직후 · 조건부 주문을 사용하거나 패스하세요."
+	battle_reaction_hint.anchor_left = 0.5
+	battle_reaction_hint.anchor_right = 0.5
+	battle_reaction_hint.offset_left = -360
+	battle_reaction_hint.offset_right = 360
+	battle_reaction_hint.offset_top = 44
+	battle_reaction_hint.offset_bottom = 76
+	battle_reaction_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	battle_reaction_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	battle_reaction_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	battle_reaction_hint.z_index = 6
+	battle_reaction_hint.add_theme_font_size_override("font_size", 17)
+	battle_reaction_hint.add_theme_color_override("font_color", GOLD)
+	battle_reaction_hint.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.78))
+	battle_reaction_hint.add_theme_constant_override("shadow_offset_x", 2)
+	battle_reaction_hint.add_theme_constant_override("shadow_offset_y", 2)
+	root.get_parent().add_child(battle_reaction_hint)
 	refresh_battle_screen()
 
 func refresh_battle_screen() -> bool:
-	if not is_instance_valid(battle_refresh_host): return false
+	if not is_instance_valid(battle_refresh_host) or not is_instance_valid(battle_reaction_hint): return false
+	battle_reaction_hint.visible = battle.phase == "reaction"
 	for child in battle_refresh_host.get_children():
 		battle_refresh_host.remove_child(child)
 		child.queue_free()
@@ -27,8 +48,6 @@ func refresh_battle_screen() -> bool:
 	return true
 
 func _populate_battle_content() -> void:
-	if battle.phase == "reaction":
-		label_at(root, "피해/처치 직후 · 조건부 주문을 사용하거나 패스하세요.", 17, GOLD)
 	render_turn_status()
 	render_chain_spells()
 	var field_center := VBoxContainer.new()

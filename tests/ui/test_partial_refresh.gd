@@ -45,10 +45,20 @@ func run() -> void:
 	await process_frame
 	var battle_screen: Node = scene.root.find_child("BattleScreen", true, false)
 	var battle_host: Node = scene.root.find_child("BattleRefreshHost", true, false)
+	var field_before: Control = scene.root.find_child("FieldPanel0", true, false)
+	var field_y_before := field_before.global_position.y
 	scene.render()
 	await process_frame
 	check(scene.root.find_child("BattleScreen", true, false) == battle_screen, "battle screen instance is reused")
 	check(scene.root.find_child("BattleRefreshHost", true, false) == battle_host, "battle outer refresh host is reused")
+	scene.battle.phase = "reaction"
+	scene.render()
+	await process_frame
+	var reaction_hint: Label = scene.root.find_child("BattleReactionHint", true, false)
+	var field_after: Control = scene.root.find_child("FieldPanel0", true, false)
+	check(is_instance_valid(reaction_hint) and reaction_hint.visible, "reaction guidance appears as an overlay")
+	check(reaction_hint.get_parent() != battle_host, "reaction guidance stays outside the battle layout flow")
+	check(absf(field_after.global_position.y - field_y_before) <= 1.0, "reaction guidance does not push the field")
 
-	print("PARTIAL REFRESH CHECKS: 8 | FAILURES: %d" % failures)
+	print("PARTIAL REFRESH CHECKS: 11 | FAILURES: %d" % failures)
 	quit(1 if failures > 0 else 0)

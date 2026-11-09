@@ -164,6 +164,10 @@ func score_action(b: TCGBattle, action: Dictionary) -> float:
 	var score := 0.0
 	var damage := _effective_damage(b, target, _damage_amount(b, action, effect))
 	if damage > 0:
+		# Some card rules deliberately allow any unit to be selected. The field AI
+		# still treats damage as hostile and must never turn a low-health ally into
+		# an attractive "easy removal" target.
+		if target[0] == action.owner: return -1000000.0
 		var kills := damage >= int(unit.hp)
 		if kills:
 			# A removal is valuable, but the victim's threat and wasted resources must
@@ -209,6 +213,7 @@ func score_action(b: TCGBattle, action: Dictionary) -> float:
 	if effect in ["double_production", "increase_reflect", "increase_armor"]:
 		return 700.0
 	if effect.begins_with("heal"):
+		if target[0] != action.owner: return -1000000.0
 		var amount := 1 if effect == "heal" else int(effect.substr(4))
 		var missing: int = maxi(0, int(unit.max_hp) - int(unit.hp))
 		if missing == 0: return -500.0
@@ -218,6 +223,7 @@ func score_action(b: TCGBattle, action: Dictionary) -> float:
 		if action.type == "spell" and int(unit.hp) > 6: score -= 650.0
 		return score
 	if effect.begins_with("shield"):
+		if target[0] != action.owner: return -1000000.0
 		var amount := 1 if effect == "shield" else int(effect.substr(6))
 		var incoming := _pending_damage_to(b, target)
 		if incoming <= 0: return -400.0
@@ -225,6 +231,7 @@ func score_action(b: TCGBattle, action: Dictionary) -> float:
 		if incoming >= int(unit.hp) and incoming - amount < int(unit.hp): score += 12000.0
 		return score
 	if effect.begins_with("mana"):
+		if target[0] != action.owner: return -1000000.0
 		var amount := int(effect.substr(4))
 		for enemy_index in range(b.players[1 - action.owner].units.size()):
 			var enemy := b.get_unit([1 - action.owner, enemy_index])
@@ -232,6 +239,7 @@ func score_action(b: TCGBattle, action: Dictionary) -> float:
 				return 1800.0 + _unit_threat(b, [1 - action.owner, enemy_index])
 		return -450.0 if action.type == "spell" else 80.0
 	if effect in ["power2", "full_bonus"]:
+		if target[0] != action.owner: return -1000000.0
 		return 260.0 + _unit_threat(b, target) * 0.06
 	return -50.0
 
