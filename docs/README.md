@@ -10,6 +10,7 @@
 ## 개발 구조
 
 - [SCENE_MAP.md](SCENE_MAP.md): 장면 이동 흐름과 컨트롤러 구성
+- [WORKING_CONTEXT.md](WORKING_CONTEXT.md): 대화 사이에서 이어갈 진행 중 작업, 임시 결정과 미해결 질문
 
 ## 실행 안내
 

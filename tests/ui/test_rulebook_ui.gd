@@ -305,22 +305,22 @@ func run() -> void:
 	check(is_instance_valid(change_marker) and change_marker.size_flags_vertical == Control.SIZE_SHRINK_CENTER, "patch item markers align vertically with their text")
 	check(is_instance_valid(feature_scene.root.find_child("PatchItemIconAdd", true, false)), "added patch items use the green plus marker")
 	check(is_instance_valid(feature_scene.root.find_child("PatchItemIconRemove", true, false)), "removed patch items use the red minus marker")
-	var latest_patch: Control = feature_scene.root.find_child("PatchNoteVersion" + latest_version + "Latest", true, false)
-	var latest_texts: Array[String] = []
-	for latest_label in latest_patch.find_children("*", "Label", true, false):
-		latest_texts.append((latest_label as Label).text)
-	check("신규" in latest_texts and "변경" in latest_texts and "금지" in latest_texts, "latest card changes are separated into new, changed, and banned subsections")
-	check("1/6 → 2/5" in latest_texts and "3/12 → 0/12" in latest_texts and "5/15 → 4/15" in latest_texts and "5/9 → 9/5" in latest_texts, "patch-note stat changes consistently use old power/health to new power/health notation")
-	var add_subheading: Label = latest_patch.find_child("PatchSubheadingAdd", true, false)
-	var change_subheading: Label = latest_patch.find_child("PatchSubheadingChange", true, false)
-	var remove_subheading: Label = latest_patch.find_child("PatchSubheadingRemove", true, false)
+	var card_patch: Control = feature_scene.root.find_child("PatchNoteVersion0_1_1", true, false)
+	var card_patch_texts: Array[String] = []
+	for card_patch_label in card_patch.find_children("*", "Label", true, false):
+		card_patch_texts.append((card_patch_label as Label).text)
+	check("신규" in card_patch_texts and "변경" in card_patch_texts and "금지" in card_patch_texts, "card changes are separated into new, changed, and banned subsections")
+	check("1/6 → 2/5" in card_patch_texts and "3/12 → 0/12" in card_patch_texts and "5/15 → 4/15" in card_patch_texts and "5/9 → 9/5" in card_patch_texts, "patch-note stat changes consistently use old power/health to new power/health notation")
+	var add_subheading: Label = card_patch.find_child("PatchSubheadingAdd", true, false)
+	var change_subheading: Label = card_patch.find_child("PatchSubheadingChange", true, false)
+	var remove_subheading: Label = card_patch.find_child("PatchSubheadingRemove", true, false)
 	check(is_instance_valid(add_subheading) and add_subheading.get_theme_color("font_color") == Color("76db8f"), "new-card subsection uses green")
 	check(is_instance_valid(change_subheading) and change_subheading.get_theme_color("font_color") == Color("71b9ff"), "changed-card subsection uses blue")
 	check(is_instance_valid(remove_subheading) and remove_subheading.get_theme_color("font_color") == Color("ff6b72"), "banned-card subsection uses red")
 	var potato_name_label: Label = null
-	for latest_label in latest_patch.find_children("*", "Label", true, false):
-		if (latest_label as Label).text == "최강의 감자":
-			potato_name_label = latest_label as Label
+	for card_patch_label in card_patch.find_children("*", "Label", true, false):
+		if (card_patch_label as Label).text == "최강의 감자":
+			potato_name_label = card_patch_label as Label
 			break
 	check(is_instance_valid(potato_name_label) and potato_name_label.get_theme_color("font_color") == Color("c8b6ff"), "patch-note card names use a distinct lavender color")
 	check(is_instance_valid(potato_name_label) and not potato_name_label.get_parent() is HBoxContainer, "patch-note status markers sit beside change details instead of card names")
@@ -402,12 +402,10 @@ func run() -> void:
 	tier_filter_1.pressed.emit()
 	tier_filter_2.button_pressed = true
 	tier_filter_2.pressed.emit()
-	check(feature_scene.deck_filter_tiers == [1, 2], "deck editor can filter multiple turns at once")
-	tier_filter_1.button_pressed = false
-	tier_filter_1.pressed.emit()
+	check(feature_scene.deck_filter_tiers == [2] and not tier_filter_1.button_pressed and tier_filter_2.button_pressed, "choosing another turn replaces the previous turn filter")
 	tier_filter_2.button_pressed = false
 	tier_filter_2.pressed.emit()
-	check(feature_scene.deck_filter_tiers.is_empty() and feature_scene.root.find_child("DeckTierFilter0", true, false).button_pressed, "turn filters return to all cards when the last selected turn is pressed again")
+	check(feature_scene.deck_filter_tiers.is_empty() and feature_scene.root.find_child("DeckTierFilter0", true, false).button_pressed, "pressing the selected turn again returns to all cards")
 	await process_frame
 	var deck_column: VBoxContainer = feature_scene.root.find_child("EditorDeckColumn", true, false)
 	var left_gaps: Array[Node] = deck_column.find_children("LeftDeckGap*", "Control", false, false)

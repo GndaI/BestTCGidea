@@ -1,11 +1,32 @@
 extends "res://src/scenes/controllers/battle_input_effects_controller.gd"
 
 const AbilityChoiceCardScene = preload("res://src/ui/components/ability_choice_card.tscn")
+var battle_refresh_host: VBoxContainer
 
 func render_battle() -> void:
 	_render_in_screen(BattleScreenScene, _render_battle_content)
 
 func _render_battle_content() -> void:
+	battle_refresh_host = VBoxContainer.new()
+	battle_refresh_host.name = "BattleRefreshHost"
+	battle_refresh_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	battle_refresh_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	battle_refresh_host.add_theme_constant_override("separation", 5)
+	root.add_child(battle_refresh_host)
+	refresh_battle_screen()
+
+func refresh_battle_screen() -> bool:
+	if not is_instance_valid(battle_refresh_host): return false
+	for child in battle_refresh_host.get_children():
+		battle_refresh_host.remove_child(child)
+		child.queue_free()
+	var screen_root := root
+	root = battle_refresh_host
+	_populate_battle_content()
+	root = screen_root
+	return true
+
+func _populate_battle_content() -> void:
 	if battle.phase == "reaction":
 		label_at(root, "피해/처치 직후 · 조건부 주문을 사용하거나 패스하세요.", 17, GOLD)
 	render_turn_status()

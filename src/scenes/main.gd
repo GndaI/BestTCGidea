@@ -1,5 +1,25 @@
 extends "res://src/scenes/controllers/battle_action_controller.gd"
 
+var active_render_key := ""
+
+func _current_render_key() -> String:
+	if info_screen_active:
+		return "info:%s" % start_page
+	if drafting:
+		if start_screen:
+			return "start:%s" % start_page
+		return "draft"
+	if covered:
+		return "covered"
+	return "battle"
+
+func _refresh_active_render(render_key: String) -> bool:
+	match render_key:
+		"start:decks": return refresh_deck_library_screen()
+		"start:deck_editor": return refresh_deck_editor_screen()
+		"battle": return refresh_battle_screen()
+	return false
+
 func render_start_screen() -> void:
 	match start_page:
 		"battle": render_battle_menu()
@@ -34,9 +54,20 @@ func render() -> void:
 	clear_chain_spells()
 	hide_card_preview()
 	auto_timer.stop()
+	var render_key := _current_render_key()
+	if render_key == active_render_key and _refresh_active_render(render_key):
+		if render_key == "battle":
+			if is_ai_turn() and ai_timer.is_stopped():
+				ai_timer.start()
+			elif can_auto_pass():
+				auto_timer.start()
+			if not online_host and not pending_online_snapshots.is_empty():
+				call_deferred("_drain_online_snapshots")
+		return
 	for child in root.get_children():
 		root.remove_child(child)
 		child.queue_free()
+	active_render_key = render_key
 	if info_screen_active:
 		if is_instance_valid(battle_log_badge): battle_log_badge.hide()
 		overlay_layer.hide()
