@@ -1,5 +1,15 @@
 extends "res://src/scenes/controllers/online_screen_controller.gd"
 
+var deck_editor_toast: PanelContainer
+var deck_editor_toast_tween: Tween
+var deck_editor_name_edit: LineEdit
+var deck_editor_browser: HBoxContainer
+var deck_editor_filter_buttons: Array[Button] = []
+var deck_editor_slots: Dictionary = {}
+var deck_library_title: Label
+var deck_library_guide: Label
+var deck_library_slots: Array[Dictionary] = []
+
 func reset_decks() -> void:
 	decks = [[], []]
 	for p in range(2):
@@ -94,7 +104,8 @@ func render_deck_library() -> void:
 
 func _render_deck_library_content() -> void:
 	var title := "덱" if deck_library_mode == "manage" else ("P%d 덱 선택" % [draft_player + 1] if deck_library_mode == "local" else "사용할 덱 선택")
-	screen_header_at(title, back_from_deck_library)
+	var header := screen_header_at(title, back_from_deck_library)
+	deck_library_title = header.get_node("ScreenTitle") as Label
 	var page := VBoxContainer.new()
 	page.name = "SavedDeckLibrary"
 	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -107,6 +118,7 @@ func _render_deck_library_content() -> void:
 	elif deck_library_mode == "local": guide_text = "P%d이 사용할 완성된 덱을 선택하세요." % [draft_player + 1]
 	var guide := label_at(page, guide_text, BODY_FONT_SIZE, MUTED)
 	guide.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	deck_library_guide = guide
 	var grid_center := CenterContainer.new()
 	grid_center.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page.add_child(grid_center)
@@ -116,16 +128,106 @@ func _render_deck_library_content() -> void:
 	grid.add_theme_constant_override("h_separation", 20)
 	grid.add_theme_constant_override("v_separation", 20)
 	grid_center.add_child(grid)
+	deck_library_slots.clear()
 	for slot in range(9):
-		if slot == 8:
-			_render_default_deck_slot(grid)
-		elif slot < saved_decks.size():
-			_render_deck_slot(grid, slot)
+		_build_deck_library_slot(grid, slot)
+	refresh_deck_library_screen()
+
+func _build_deck_library_slot(parent: Node, slot_index: int) -> void:
+	var panel := PanelContainer.new()
+	panel.name = "BuiltinDefaultDeckSlot" if slot_index == 8 else "DeckLibrarySlot%d" % slot_index
+	panel.custom_minimum_size = Vector2(330, 190)
+	parent.add_child(panel)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 10)
+	panel.add_child(col)
+	var top := row_at(col)
+	var deck_name := label_at(top, "", BODY_FONT_SIZE, GOLD)
+	deck_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var remove := button_at(top, "삭제", func(): confirm_delete_saved_deck(slot_index))
+	remove.custom_minimum_size = Vector2(76, 42)
+	var badge := label_at(top, "기본 제공", 18, Color("fff0c2"))
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var status := label_at(col, "", BODY_FONT_SIZE, MUTED)
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var action := button_at(col, "", func(): _activate_deck_library_slot(slot_index))
+	action.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	action.add_theme_font_size_override("font_size", BODY_FONT_SIZE)
+	var plus := button_at(panel, "+", func(): create_empty_deck())
+	plus.add_theme_font_size_override("font_size", 54)
+	deck_library_slots.append({
+		"panel": panel,
+		"content": col,
+		"name": deck_name,
+		"remove": remove,
+		"badge": badge,
+		"status": status,
+		"action": action,
+		"plus": plus,
+	})
+
+func _activate_deck_library_slot(slot_index: int) -> void:
+	if slot_index == 8:
+		choose_default_deck()
+	elif slot_index >= 0 and slot_index < saved_decks.size():
+		choose_saved_deck(slot_index)
+
+func refresh_deck_library_screen() -> bool:
+	if not is_instance_valid(deck_library_title) or not is_instance_valid(deck_library_guide) or deck_library_slots.size() != 9:
+		return false
+	deck_library_title.text = "덱" if deck_library_mode == "manage" else ("P%d 덱 선택" % [draft_player + 1] if deck_library_mode == "local" else "사용할 덱 선택")
+	var guide_text := "덱에 커서를 올리면 포함된 카드가 표시됩니다."
+	if deck_library_mode == "ai": guide_text = "완성된 덱을 누르면 바로 AI 대전을 시작합니다."
+	elif deck_library_mode == "online": guide_text = "완성된 덱을 누르면 즉시 제출됩니다."
+	elif deck_library_mode == "local": guide_text = "P%d이 사용할 완성된 덱을 선택하세요." % [draft_player + 1]
+	deck_library_guide.text = guide_text
+	for slot_index in range(9):
+		var refs: Dictionary = deck_library_slots[slot_index]
+		var panel: PanelContainer = refs.panel
+		var content: VBoxContainer = refs.content
+		var deck_name: Label = refs.name
+		var remove: Button = refs.remove
+		var badge: Label = refs.badge
+		var status: Label = refs.status
+		var action: Button = refs.action
+		var plus: Button = refs.plus
+		if not is_instance_valid(panel): return false
+		var is_default := slot_index == 8
+		var has_custom := slot_index < saved_decks.size() and not is_default
+		var is_empty := not is_default and not has_custom
+		content.visible = not is_empty
+		plus.visible = is_empty
+		if is_empty:
+			panel.add_theme_stylebox_override("panel", box(Color("111c2e"), Color("293c55")))
+			plus.disabled = deck_library_mode != "manage" or saved_decks.size() >= MAX_CUSTOM_DECKS
+			plus.tooltip_text = "빈 덱 만들기" if deck_library_mode == "manage" else "대전에서는 완성된 덱만 선택할 수 있습니다."
+			panel.tooltip_text = ""
+			continue
+		var entry: Dictionary = _default_deck_entry() if is_default else saved_decks[slot_index]
+		var valid := _valid_online_deck(entry.cards)
+		panel.tooltip_text = _deck_tooltip(entry)
+		deck_name.text = "기본 덱" if is_default else _deck_display_name(entry)
+		remove.visible = not is_default
+		badge.visible = is_default
+		status.text = "%d / 12장 · %s" % [_deck_count(entry.cards), "대전 가능" if valid else "제작 중"]
+		status.add_theme_color_override("font_color", GREEN if valid else MUTED)
+		var action_text := "복사해서 편집" if is_default else "편집하기"
+		if deck_library_mode == "ai": action_text = "선택하고 대전 시작"
+		elif deck_library_mode == "online": action_text = "선택하고 제출"
+		elif deck_library_mode == "local": action_text = "P%d 덱으로 선택" % [draft_player + 1]
+		var selection_locked := deck_library_mode == "online" and local_deck_submitted
+		var custom_limit_reached := is_default and deck_library_mode == "manage" and saved_decks.size() >= MAX_CUSTOM_DECKS
+		action.text = "제출 완료" if selection_locked else action_text
+		action.disabled = selection_locked or custom_limit_reached
+		action.tooltip_text = "사용자 덱은 8개까지 만들 수 있습니다." if custom_limit_reached else _deck_tooltip(entry)
+		if is_default:
+			var default_style := box(Color("1d2b42"), GOLD.darkened(0.35))
+			default_style.set_border_width_all(3)
+			panel.add_theme_stylebox_override("panel", default_style)
 		else:
-			_render_empty_deck_slot(grid, slot)
-	if not deck_editor_notice.is_empty():
-		var notice := label_at(page, deck_editor_notice, BODY_FONT_SIZE, Color("ffbd84"))
-		notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			panel.add_theme_stylebox_override("panel", box(Color("17263d"), Color("3b5473")))
+	return true
 
 func _render_deck_slot(parent: Node, index: int) -> void:
 	var entry: Dictionary = saved_decks[index]
@@ -211,8 +313,7 @@ func choose_saved_deck(index: int) -> void:
 		return
 	var chosen: Array = saved_decks[index].cards.duplicate(true)
 	if not _valid_online_deck(chosen):
-		deck_editor_notice = "12장을 모두 채운 덱만 대전에 사용할 수 있습니다."
-		render()
+		_show_deck_editor_toast("12장을 모두 채운 덱만 대전에 사용할 수 있습니다.")
 		return
 	_use_chosen_deck(chosen)
 
@@ -233,8 +334,8 @@ func _use_chosen_deck(chosen: Array) -> void:
 		submit_selected_online_deck()
 	elif deck_library_mode == "local" and draft_player == 0:
 		draft_player = 1
-		deck_editor_notice = "P1 덱 선택 완료 · 이제 P2 덱을 선택하세요."
 		render()
+		_show_deck_editor_toast("P1 덱 선택 완료 · 이제 P2 덱을 선택하세요.")
 	else:
 		start_screen = false
 		online_mode = false
@@ -249,13 +350,13 @@ func submit_selected_online_deck() -> void:
 			start_online_match()
 		else:
 			online_notice = "내 덱을 제출했습니다. 상대 덱 제출을 기다리는 중…"
-			deck_editor_notice = online_notice
 			render()
+			_show_deck_editor_toast(online_notice)
 	else:
 		room_signaling.send_game("submit_deck", {"deck": decks[local_player]})
 		online_notice = "덱을 제출했습니다. 호스트가 대전을 시작할 때까지 기다려 주세요."
-		deck_editor_notice = online_notice
 		render()
+		_show_deck_editor_toast(online_notice)
 
 func back_from_deck_library() -> void:
 	deck_editor_notice = ""
@@ -301,6 +402,8 @@ func _render_deck_editor_content() -> void:
 		back_to_deck_library()
 		return
 	screen_header_at("덱 제작", back_to_deck_library)
+	deck_editor_slots.clear()
+	deck_editor_filter_buttons.clear()
 	var body := HBoxContainer.new()
 	body.name = "DeckEditor"
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -325,6 +428,7 @@ func _render_deck_editor_content() -> void:
 	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_edit.text_changed.connect(update_edited_deck_name)
 	name_row.add_child(name_edit)
+	deck_editor_name_edit = name_edit
 	var delete_button := button_at(name_row, "삭제", func(): confirm_delete_saved_deck(editing_deck_index))
 	delete_button.custom_minimum_size = Vector2(90, 46)
 	var deck: Array = saved_decks[editing_deck_index].cards
@@ -355,7 +459,9 @@ func _render_deck_editor_content() -> void:
 	scroll.name = "AllCardsHorizontalScroll"
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	# Keep the card rows at the same height even when filtering leaves too few
+	# cards to require horizontal scrolling.
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	right.add_child(scroll)
 	var browser := HBoxContainer.new()
@@ -363,6 +469,7 @@ func _render_deck_editor_content() -> void:
 	browser.add_theme_constant_override("separation", 12)
 	browser.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(browser)
+	deck_editor_browser = browser
 	var filter_buttons: Array[Button] = []
 	for filter_tier in range(7):
 		var filter_value := filter_tier
@@ -377,26 +484,63 @@ func _render_deck_editor_content() -> void:
 			if filter_value == 0:
 				deck_filter_tiers.clear()
 			elif filter_value in deck_filter_tiers:
-				deck_filter_tiers.erase(filter_value)
+				deck_filter_tiers.clear()
 			else:
+				deck_filter_tiers.clear()
 				deck_filter_tiers.append(filter_value)
-				deck_filter_tiers.sort()
 			for button in filter_buttons:
 				var button_tier := int(button.name.trim_prefix("DeckTierFilter"))
 				button.button_pressed = deck_filter_tiers.is_empty() if button_tier == 0 else button_tier in deck_filter_tiers
 			_rebuild_deck_card_browser(browser)
 		)
 		filter_buttons.append(filter_button)
+		deck_editor_filter_buttons.append(filter_button)
 		search_row.add_child(filter_button)
 	_rebuild_deck_card_browser(browser)
 	search.text_changed.connect(func(value):
 		deck_search_text = value
 		_rebuild_deck_card_browser(browser)
 	)
-	var notice := label_at(right, deck_editor_notice, BODY_FONT_SIZE, Color("ffbd84"))
-	notice.name = "DeckEditorNotice"
-	notice.visible = not deck_editor_notice.is_empty()
-	notice.custom_minimum_size.y = 46 if notice.visible else 0
+
+func _show_deck_editor_toast(message: String) -> void:
+	if message.is_empty() or not is_instance_valid(hover_layer): return
+	if is_instance_valid(deck_editor_toast_tween):
+		deck_editor_toast_tween.kill()
+	if is_instance_valid(deck_editor_toast):
+		deck_editor_toast.queue_free()
+	var toast := PanelContainer.new()
+	toast.name = "DeckEditorToast"
+	toast.anchor_left = 0.5
+	toast.anchor_right = 0.5
+	toast.anchor_top = 0.5
+	toast.anchor_bottom = 0.5
+	toast.offset_left = -300
+	toast.offset_right = 300
+	toast.offset_top = -42
+	toast.offset_bottom = 42
+	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast.z_index = 100
+	var toast_style := box(Color(0.025, 0.045, 0.08, 0.72), Color(1.0, 0.74, 0.46, 0.34))
+	toast_style.set_border_width_all(1)
+	toast_style.shadow_color = Color(0.0, 0.0, 0.0, 0.3)
+	toast_style.shadow_size = 18
+	toast.add_theme_stylebox_override("panel", toast_style)
+	hover_layer.add_child(toast)
+	deck_editor_toast = toast
+	var toast_label := label_at(toast, message, 22, Color(1.0, 0.94, 0.83, 0.94))
+	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	toast_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	toast.modulate.a = 0.0
+	deck_editor_toast_tween = create_tween()
+	deck_editor_toast_tween.tween_property(toast, "modulate:a", 1.0, 0.12)
+	deck_editor_toast_tween.tween_interval(0.98)
+	deck_editor_toast_tween.tween_property(toast, "modulate:a", 0.0, 0.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	deck_editor_toast_tween.tween_callback(func():
+		if is_instance_valid(toast): toast.queue_free()
+		if deck_editor_toast == toast: deck_editor_toast = null
+		deck_editor_toast_tween = null
+	)
 
 func _add_deck_editor_vertical_spacer(parent: Node, spacer_name: String = "") -> Control:
 	var spacer := Control.new()
@@ -423,35 +567,66 @@ func _render_editor_tier(parent: Node, deck: Array, tier: int) -> void:
 	tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	emphasize_label(tier_label, 0.9)
 	for position in range(2):
-		if position < deck[tier - 1].size():
-			var id_value := str(deck[tier - 1][position])
-			var card: Dictionary = TCGCards.by_id(id_value)
-			var slot := VBoxContainer.new()
-			slot.custom_minimum_size = Vector2(196, 98)
-			row.add_child(slot)
-			var card_row := HBoxContainer.new()
-			slot.add_child(card_row)
-			var view := add_card(card_row, card)
-			view.custom_minimum_size = Vector2(70, 98)
-			view.tooltip_text = ""
-			view.gui_input.connect(func(event):
-				if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-					remove_editor_card(tier, id_value, view)
-			)
-			var card_name := label_at(card_row, str(card.name), 20, Color("e8eef8"))
-			card_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			card_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			card_name.max_lines_visible = 2
-			card_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		else:
-			var empty := Label.new()
-			empty.text = "빈 카드 칸"
-			empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			empty.custom_minimum_size = Vector2(196, 98)
-			empty.add_theme_font_size_override("font_size", BODY_FONT_SIZE)
-			empty.add_theme_color_override("font_color", Color("6f829b"))
-			row.add_child(empty)
+		var slot := Control.new()
+		slot.name = "EditorTier%dSlot%d" % [tier, position]
+		slot.custom_minimum_size = Vector2(196, 98)
+		slot.clip_contents = true
+		row.add_child(slot)
+		deck_editor_slots["%d:%d" % [tier, position]] = slot
+		_refresh_editor_slot(slot, deck, tier, position)
+
+func _refresh_editor_slot(slot: Control, deck: Array, tier: int, position: int) -> void:
+	for child in slot.get_children():
+		slot.remove_child(child)
+		child.queue_free()
+	if position >= deck[tier - 1].size():
+		var empty := Label.new()
+		empty.text = "빈 카드 칸"
+		empty.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		empty.add_theme_font_size_override("font_size", BODY_FONT_SIZE)
+		empty.add_theme_color_override("font_color", Color("6f829b"))
+		slot.add_child(empty)
+		return
+	var id_value := str(deck[tier - 1][position])
+	var card: Dictionary = TCGCards.by_id(id_value)
+	var card_row := HBoxContainer.new()
+	card_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	card_row.add_theme_constant_override("separation", 6)
+	slot.add_child(card_row)
+	var view := add_card(card_row, card)
+	view.custom_minimum_size = Vector2(70, 98)
+	view.tooltip_text = ""
+	view.gui_input.connect(func(event):
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			remove_editor_card(tier, id_value, view)
+	)
+	var card_name := label_at(card_row, str(card.name), 20, Color("e8eef8"))
+	card_name.custom_minimum_size = Vector2(120, 98)
+	card_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	card_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card_name.max_lines_visible = 2
+	card_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+
+func refresh_deck_editor_screen() -> bool:
+	if editing_deck_index < 0 or editing_deck_index >= saved_decks.size(): return false
+	if not is_instance_valid(deck_editor_browser) or deck_editor_slots.size() != 12: return false
+	var deck: Array = saved_decks[editing_deck_index].cards
+	if is_instance_valid(deck_editor_name_edit) and not deck_editor_name_edit.has_focus():
+		deck_editor_name_edit.text = str(saved_decks[editing_deck_index].name)
+	for tier in range(1, 7):
+		for position in range(2):
+			var slot: Control = deck_editor_slots.get("%d:%d" % [tier, position])
+			if not is_instance_valid(slot): return false
+			_refresh_editor_slot(slot, deck, tier, position)
+	for button in deck_editor_filter_buttons:
+		if not is_instance_valid(button): return false
+		var button_tier := int(button.name.trim_prefix("DeckTierFilter"))
+		button.button_pressed = deck_filter_tiers.is_empty() if button_tier == 0 else button_tier in deck_filter_tiers
+	_rebuild_deck_card_browser(deck_editor_browser)
+	return true
 
 func _rebuild_deck_card_browser(browser: HBoxContainer) -> void:
 	for child in browser.get_children():
@@ -517,17 +692,19 @@ func add_editor_card(tier: int, id_value: String, source_view: Control = null) -
 	if deck_transfer_active or editing_deck_index < 0 or editing_deck_index >= saved_decks.size(): return
 	var pair: Array = saved_decks[editing_deck_index].cards[tier - 1]
 	if id_value in pair:
-		deck_editor_notice = "이미 이 턴에 들어 있는 카드입니다."
+		_show_deck_editor_toast("이미 이 턴에 들어 있는 카드입니다.")
+		return
 	elif pair.size() >= 2:
-		deck_editor_notice = "%d턴은 이미 2장입니다. 왼쪽에서 카드 하나를 먼저 빼세요." % tier
-	else:
-		deck_transfer_active = true
-		await _animate_editor_card_transfer(source_view, root.find_child("EditorTier%d" % tier, true, false), TCGCards.by_id(id_value))
-		pair.append(id_value)
-		deck_editor_notice = "%d턴에 카드를 추가했습니다." % tier
-		_write_saved_decks()
-		deck_transfer_active = false
+		_show_deck_editor_toast("%d턴은 이미 2장입니다. 왼쪽에서 카드 하나를 먼저 빼세요." % tier)
+		return
+	deck_transfer_active = true
+	await _animate_editor_card_transfer(source_view, root.find_child("EditorTier%d" % tier, true, false), TCGCards.by_id(id_value))
+	pair.append(id_value)
+	var saved_ok := _write_saved_decks()
+	deck_transfer_active = false
 	render()
+	if not saved_ok:
+		_show_deck_editor_toast("덱 저장 파일을 갱신할 수 없습니다.")
 
 func remove_editor_card(tier: int, id_value: String, source_view: Control = null) -> void:
 	if deck_transfer_active or editing_deck_index < 0 or editing_deck_index >= saved_decks.size(): return
@@ -535,10 +712,11 @@ func remove_editor_card(tier: int, id_value: String, source_view: Control = null
 	deck_transfer_active = true
 	await _animate_editor_card_transfer(source_view, root.find_child("DeckCardBrowser", true, false), TCGCards.by_id(id_value))
 	pair.erase(id_value)
-	deck_editor_notice = "%d턴에서 카드를 뺐습니다." % tier
-	_write_saved_decks()
+	var saved_ok := _write_saved_decks()
 	deck_transfer_active = false
 	render()
+	if not saved_ok:
+		_show_deck_editor_toast("덱 저장 파일을 갱신할 수 없습니다.")
 
 func _animate_editor_card_transfer(source: Control, destination: Control, card: Dictionary) -> void:
 	if not is_instance_valid(source) or not is_instance_valid(destination) or card.is_empty(): return

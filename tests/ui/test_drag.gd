@@ -68,6 +68,7 @@ func run() -> void:
 	scene.battle.pass_priority()
 	check(scene.battle.visual_events[0].source == [0, 0], "resolved damage retains source")
 	scene.render()
+	target = scene.unit_views["1:0"]
 	check(scene.action_button.text.begins_with("턴 종료"), "shared action button becomes turn end with empty chain")
 	check(scene.begin_drag([0, 0], Vector2.ZERO), "zero mana unit can still be clicked for its ability menu")
 	scene.drag_moved = true

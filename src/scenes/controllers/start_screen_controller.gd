@@ -319,6 +319,7 @@ func screen_header_at(title_text: String, back_callback: Callable) -> Control:
 	root.add_child(header)
 	back_button_at(header, back_callback)
 	var title := label_at(header, title_text, TITLE_FONT_SIZE, GOLD)
+	title.name = "ScreenTitle"
 	emphasize_label(title, 0.42)
 	title.anchor_left = 0.2
 	title.anchor_right = 0.8

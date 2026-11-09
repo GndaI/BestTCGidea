@@ -32,11 +32,16 @@
 - `.godot/`과 `build/`는 자동 생성 폴더이며 Git에 포함하지 않습니다.
 - 프로젝트 루트에 빈 `export_templates/`, `feature_profiles/`, `script_templates/`, `text_editor_themes/`가 생기면 제한된 환경에서 Godot가 공용 설정 경로 대신 만든 것인지 확인합니다. 내용이 없고 Git에서 제외되어 있을 때만 제거합니다.
 - Godot 편집기 검사와 내보내기는 공용 설정 폴더에 정상적으로 접근할 수 있는 일반 실행 환경에서 수행합니다.
+- 제한된 도구 환경에서 Godot 자동 검사를 실행할 때에는 프로젝트 루트가 아닌 별도의 임시 폴더를 프로세스 작업 위치로 사용하고, `--path`에는 이 프로젝트의 절대 경로를 전달합니다. `tests/`는 검사 코드의 위치이며 Godot 사용자 설정 폴더를 생성하는 장소로 사용하지 않습니다.
 
 ## 문서와 보관함
 
 - 루트 `README.md`는 사람이 처음 읽는 짧은 프로젝트 안내로 사용합니다. 세부 규칙과 긴 개발 기록을 중복해서 넣지 않고 `docs/` 문서로 연결합니다.
 - `docs/README.md`는 현행 문서의 목차로 유지합니다.
+- 작업을 시작할 때 `docs/WORKING_CONTEXT.md`를 읽고, 다른 대화에서 이어받아야 할 진행 중 작업, 임시 결정, 미해결 질문과 다음 작업을 확인합니다.
+- `docs/WORKING_CONTEXT.md`에는 다른 작업의 범위나 구현 방향을 바꿀 수 있는 내용만 간결하게 기록합니다. 전체 대화, 일상적인 진행 과정, 반복 가능한 명령 출력과 이미 다른 문서가 관리하는 사실은 넣지 않습니다.
+- 내용이 확정되면 종류에 맞는 기준 문서로 옮기고 `docs/WORKING_CONTEXT.md`에서는 제거합니다. 계속 지킬 작업 규칙은 `AGENTS.md`, 게임 규칙은 `docs/RULEBOOK.md`, 장면과 코드 구조는 `docs/SCENE_MAP.md`, 출시 변경점은 게임 패치노트가 관리합니다.
+- 작업을 마칠 때 `docs/WORKING_CONTEXT.md`의 완료된 항목을 정리하고, 아직 다음 대화에 필요한 내용만 남깁니다. 문서가 비어도 파일과 기본 제목은 유지합니다.
 - 현행 규칙은 `docs/RULEBOOK.md`, 카드 작성 양식은 `docs/CARD-TEMPLATE.md`를 기준으로 합니다.
 - 장면과 컨트롤러 구조는 `docs/SCENE_MAP.md`, Windows 온라인 시작 방법은 `docs/setup/README.md`를 기준으로 합니다.
 - `src/`, `tests/`, `server/`, `src/assets/` 안의 `README.md`는 해당 폴더만 설명합니다.
