@@ -20,6 +20,7 @@ Godot에서 이 폴더의 `project.godot`을 연 뒤 `프로젝트 > 내보내�
 게임 안 ‘규칙’에서도 같은 내용을 볼 수 있습니다.
 
 ## 카드 풀 (등록 22종 · 사용 가능 21종)
+https://docs.google.com/document/d/10En03BHY5d76oMU8cXgv2HpFexc8jYSCRBik6JwfPQQ/edit?tab=t.86re7keezesv
 
 | 단계 | 카드 |
 | --- | --- |
