@@ -59,6 +59,27 @@ func _render_online_browser_content() -> void:
 	public_room_name_edit.text_changed.connect(func(value): public_room_name = value)
 	public_room_name_edit.text_submitted.connect(func(_value): create_public_web_room())
 	create_col.add_child(public_room_name_edit)
+	label_at(create_col, "게임 모드", 18, Color("ecf2fc"))
+	public_room_mode_select = OptionButton.new()
+	public_room_mode_select.name = "PublicRoomModeSelect"
+	public_room_mode_select.custom_minimum_size.y = 58
+	selected_game_mode = GameModesScript.normalize(selected_game_mode)
+	var selected_mode_index := 0
+	for mode in GameModesScript.all():
+		var mode_index := public_room_mode_select.item_count
+		public_room_mode_select.add_item(str(mode.name))
+		public_room_mode_select.set_item_metadata(mode_index, str(mode.id))
+		if str(mode.id) == selected_game_mode:
+			selected_mode_index = mode_index
+	public_room_mode_select.select(selected_mode_index)
+	create_col.add_child(public_room_mode_select)
+	var mode_description := label_at(create_col, GameModesScript.description(selected_game_mode), 16, MUTED)
+	mode_description.name = "PublicRoomModeDescription"
+	mode_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	public_room_mode_select.item_selected.connect(func(index):
+		selected_game_mode = GameModesScript.normalize(str(public_room_mode_select.get_item_metadata(index)))
+		mode_description.text = GameModesScript.description(selected_game_mode)
+	)
 	var create_button := button_at(create_col, "방 만들기", create_public_web_room)
 	create_button.name = "CreatePublicRoomButton"
 	create_button.custom_minimum_size.y = 72
@@ -109,7 +130,7 @@ func _render_online_lobby_content() -> void:
 	settings_panel.add_child(settings_col)
 	var settings_title := label_at(settings_col, "게임 설정", MENU_FONT_SIZE, GOLD)
 	emphasize_label(settings_title, 0.35)
-	_online_setting_row(settings_col, "대전 방식", "일반전")
+	_online_setting_row(settings_col, "게임 모드", GameModesScript.display_name(current_game_mode))
 	_online_setting_row(settings_col, "덱 구성", "방에서 선택")
 	_online_setting_row(settings_col, "관전자", "없음")
 	var settings_spacer := Control.new()
@@ -337,6 +358,7 @@ func _rebuild_public_room_list() -> void:
 		var players := int(room_data.get("players", 0))
 		var waiting := str(room_data.get("status", "")) == "waiting" and players < 2
 		var room_name := str(room_data.get("name", "이름 없는 방"))
+		var game_mode := GameModesScript.display_name(str(room_data.get("mode", GameModesScript.DEFAULT_ID)))
 		var shell := PanelContainer.new()
 		shell.custom_minimum_size.y = 112
 		shell.add_theme_stylebox_override("panel", box(Color("14243b"), Color("38516e")))
@@ -350,7 +372,7 @@ func _rebuild_public_room_list() -> void:
 		var name_label := label_at(info, room_name, 23, Color("f3f6fc"))
 		emphasize_label(name_label, 0.24)
 		var seats := "●  ○" if players == 1 else ("●  ●" if players >= 2 else "○  ○")
-		label_at(info, "%s    %d/2명" % [seats, players], 18, GOLD if waiting else MUTED)
+		label_at(info, "%s · %s    %d/2명" % [game_mode, seats, players], 18, GOLD if waiting else MUTED)
 		var state_text := "참가" if waiting else "진행 중"
 		var room_button := button_at(row, state_text, join_public_room.bind(code), not waiting)
 		room_button.custom_minimum_size = Vector2(160, 62)
@@ -364,6 +386,7 @@ func create_public_web_room() -> void:
 		return
 	public_room_name = room_name
 	current_room_name = room_name
+	current_game_mode = GameModesScript.normalize(selected_game_mode)
 	local_lobby_ready = true
 	remote_lobby_ready = false
 	room_refresh_timer.stop()
@@ -371,7 +394,7 @@ func create_public_web_room() -> void:
 	current_room_code = ""
 	online_state = "connecting"
 	render()
-	room_signaling.create_public_room(signaling_url(), room_name)
+	room_signaling.create_public_room(signaling_url(), room_name, current_game_mode)
 
 func join_public_room(code: String) -> void:
 	if code.length() != 6:
@@ -380,9 +403,11 @@ func join_public_room(code: String) -> void:
 	online_notice = ""
 	current_room_code = code
 	current_room_name = ""
+	current_game_mode = GameModesScript.DEFAULT_ID
 	for room_data in public_rooms:
 		if room_data is Dictionary and str(room_data.get("code", "")) == code:
 			current_room_name = str(room_data.get("name", ""))
+			current_game_mode = GameModesScript.normalize(str(room_data.get("mode", GameModesScript.DEFAULT_ID)))
 			break
 	local_lobby_ready = false
 	remote_lobby_ready = true
@@ -410,6 +435,7 @@ func _on_room_failed(message: String) -> void:
 	online_state = "idle"
 	current_room_code = ""
 	current_room_name = ""
+	current_game_mode = GameModesScript.DEFAULT_ID
 	local_lobby_ready = false
 	remote_lobby_ready = false
 	online_notice = message
@@ -429,7 +455,7 @@ func _on_room_peer_connected(peer_id: int) -> void:
 	remote_deck_submitted = false
 	local_lobby_ready = true
 	remote_lobby_ready = false
-	room_signaling.send_game("enter_lobby", {"name": current_room_name})
+	room_signaling.send_game("enter_lobby", {"name": current_room_name, "mode": current_game_mode})
 	render()
 
 func _on_room_peer_disconnected(peer_id: int) -> void:
@@ -503,6 +529,7 @@ func stop_network() -> void:
 	online_state = "idle"
 	current_room_code = ""
 	current_room_name = ""
+	current_game_mode = GameModesScript.DEFAULT_ID
 	remote_peer_id = 0
 	local_lobby_ready = false
 	remote_lobby_ready = false
@@ -585,6 +612,7 @@ func _rpc_enter_online_lobby(payload: Variant = {}) -> void:
 	online_state = "lobby"
 	if payload is Dictionary:
 		current_room_name = str(payload.get("name", current_room_name))
+		current_game_mode = GameModesScript.normalize(str(payload.get("mode", current_game_mode)))
 	start_screen = true
 	drafting = true
 	ai_enabled = false

@@ -5,9 +5,9 @@
 ```mermaid
 flowchart LR
     MAIN["메인 화면<br/>MainMenuScreen"] --> BMODE["대전 선택<br/>BattleModeMenuScreen"]
-    BMODE --> AI["AI 난이도 선택<br/>AIModeMenuScreen"]
+    BMODE --> AIGMODE["AI 게임 모드 선택<br/>GameModeSelectScreen"] --> AI["AI 난이도 선택<br/>AIModeMenuScreen"]
     AI --> AIDECK["내 덱 선택<br/>DeckLibraryScreen"] --> AIBATTLE["AI 전투<br/>BattleScreen"]
-    BMODE --> P1DECK["P1 덱 선택<br/>DeckLibraryScreen"] --> P2DECK["P2 덱 선택<br/>DeckLibraryScreen"] --> LOCAL["로컬 전투<br/>BattleScreen"]
+    BMODE --> LOCALGMODE["로컬 게임 모드 선택<br/>GameModeSelectScreen"] --> P1DECK["P1 덱 선택<br/>DeckLibraryScreen"] --> P2DECK["P2 덱 선택<br/>DeckLibraryScreen"] --> LOCAL["로컬 전투<br/>BattleScreen"]
     BMODE --> ROOMS["공개 방 목록<br/>OnlineBrowserScreen"] --> LOBBY["온라인 대기방<br/>OnlineLobbyScreen"] --> DRAFT["온라인 덱 구성<br/>DraftScreen"] --> ONLINE["온라인 전투<br/>BattleScreen"]
     AIBATTLE --> RESULT["전투 결과<br/>ResultOverlay"]
     LOCAL --> RESULT
@@ -35,6 +35,7 @@ flowchart LR
 - `src/scenes/main.tscn`: 게임 루트와 `ScreenHost`
 - `src/scenes/screens/main_menu/main_menu.tscn`: 메인 화면
 - `src/scenes/screens/menu/battle_mode_menu.tscn`: 대전 방식 선택
+- `src/scenes/screens/menu/game_mode_select_screen.tscn`: AI와 로컬 공용 게임 모드 선택
 - `src/scenes/screens/menu/ai_mode_menu.tscn`: AI 난이도 선택
 - `src/scenes/screens/patch_notes/patch_notes_screen.tscn`: 패치노트
 - `src/scenes/screens/account/account_screen.tscn`: 계정

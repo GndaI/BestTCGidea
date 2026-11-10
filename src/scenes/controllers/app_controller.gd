@@ -1,12 +1,14 @@
 extends Control
 
 const TCGSoundFXScript = preload("res://src/effects/sound/sound_fx.gd")
+const GameModesScript = preload("res://src/battle/game_modes.gd")
 const RoomSignalingScript = preload("res://src/online/rooms/room_signaling.gd")
 const SupabaseAuthScript = preload("res://src/online/account/supabase_auth.gd")
 const CloudDecksScript = preload("res://src/online/decks/cloud_decks.gd")
 const PatchNotesData = preload("res://src/ui/screens/patch_notes/patch_notes.gd")
 const MainMenuScene = preload("res://src/scenes/screens/main_menu/main_menu.tscn")
 const BattleModeMenuScene = preload("res://src/scenes/screens/menu/battle_mode_menu.tscn")
+const GameModeSelectScreenScene = preload("res://src/scenes/screens/menu/game_mode_select_screen.tscn")
 const AIModeMenuScene = preload("res://src/scenes/screens/menu/ai_mode_menu.tscn")
 const SettingsScreenScene = preload("res://src/scenes/screens/settings/settings_screen.tscn")
 const RulesScreenScene = preload("res://src/scenes/screens/rules/rules_screen.tscn")
@@ -162,6 +164,10 @@ var port_edit: LineEdit
 var join_port_field: LineEdit
 var public_room_name_edit: LineEdit
 var public_room_name := ""
+var public_room_mode_select: OptionButton
+var selected_game_mode := GameModesScript.DEFAULT_ID
+var current_game_mode := GameModesScript.DEFAULT_ID
+var pending_battle_type := ""
 var public_rooms: Array = []
 var public_room_list_box: VBoxContainer
 var public_room_list_status: Label
@@ -441,6 +447,9 @@ func submenu_at(title_text: String, back_callback: Callable) -> VBoxContainer:
 func render_battle_menu() -> void:
 	pass
 
+func render_game_mode_menu() -> void:
+	pass
+
 func render_ai_menu() -> void:
 	pass
 
@@ -451,6 +460,9 @@ func _render_online_menu_content() -> void:
 	pass
 
 func open_battle_menu() -> void:
+	pass
+
+func open_game_mode_menu(battle_type: String) -> void:
 	pass
 
 func open_ai_menu() -> void:

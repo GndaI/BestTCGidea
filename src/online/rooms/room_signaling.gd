@@ -30,8 +30,8 @@ var stopping := false
 func create_room(url: String) -> void:
 	_start(url, "")
 
-func create_public_room(url: String, room_name: String) -> void:
-	_start(url, {"code": "", "public": true, "name": room_name.strip_edges()})
+func create_public_room(url: String, room_name: String, game_mode: String = "standard") -> void:
+	_start(url, {"code": "", "public": true, "name": room_name.strip_edges(), "mode": game_mode})
 
 func join_room(url: String, room_code: String) -> void:
 	_start(url, room_code.strip_edges().to_upper())

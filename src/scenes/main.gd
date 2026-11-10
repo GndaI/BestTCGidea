@@ -23,6 +23,7 @@ func _refresh_active_render(render_key: String) -> bool:
 func render_start_screen() -> void:
 	match start_page:
 		"battle": render_battle_menu()
+		"game_mode": render_game_mode_menu()
 		"ai": render_ai_menu()
 		"online": render_online_menu()
 		"account": render_account()

@@ -371,7 +371,7 @@ func back_from_deck_library() -> void:
 			deck_editor_notice = ""
 			render()
 		else:
-			back_to_battle_menu()
+			open_game_mode_menu("local")
 	else:
 		start_page = "online"
 		stop_network()

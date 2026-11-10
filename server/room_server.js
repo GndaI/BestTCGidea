@@ -6,6 +6,8 @@ const { WebSocketServer, WebSocket } = require("ws");
 const PORT = Number(process.env.PORT || 8000);
 const WEB_ROOT = path.resolve(__dirname, "..", "build", "web");
 const ROOM_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const DEFAULT_GAME_MODE = "standard";
+const GAME_MODES = new Set([DEFAULT_GAME_MODE]);
 const rooms = new Map();
 
 const Message = {
@@ -53,6 +55,7 @@ function publicRoomList() {
     .map(([code, room]) => ({
       code,
       name: room.name,
+      mode: room.mode,
       players: room.peers.size,
       capacity: 2,
       status: room.sealed || room.peers.size >= 2 ? "playing" : "waiting",
@@ -81,10 +84,13 @@ function join(ws, requested) {
   if (!code) {
     const created = roomCode();
     const cleanName = String(options.name || "").trim().slice(0, 20);
+    const requestedMode = String(options.mode || DEFAULT_GAME_MODE).trim();
+    const gameMode = GAME_MODES.has(requestedMode) ? requestedMode : DEFAULT_GAME_MODE;
     rooms.set(created, {
       peers: new Map([[1, ws]]),
       isPublic: Boolean(options.public),
       name: cleanName || "이름 없는 방",
+      mode: gameMode,
       sealed: false,
       createdAt: Date.now(),
     });

@@ -345,11 +345,44 @@ func run() -> void:
 	check("일치하지 않습니다" in feature_scene.account_notice, "account signup blocks mismatched password confirmation before a network request")
 	feature_scene.open_battle_menu()
 	await process_frame
+	var battle_mode_screen: Control = feature_scene.root.find_child("BattleModeMenuScreen", true, false)
+	check(is_instance_valid(battle_mode_screen), "battle menu is mounted before choosing a game mode")
+	battle_mode_screen.action_requested.emit("ai")
+	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("GameModeSelectScreen", true, false)) and feature_scene.pending_battle_type == "ai", "AI battle opens the shared game-mode scene")
+	var offline_mode_select: OptionButton = feature_scene.root.find_child("OfflineGameModeSelect", true, false)
+	check(is_instance_valid(offline_mode_select) and offline_mode_select.get_item_text(0) == "기본 모드", "offline game-mode scene defaults to the standard mode")
+	feature_scene.confirm_game_mode_selection()
+	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("AIModeMenuScreen", true, false)) and feature_scene.current_game_mode == feature_scene.GameModesScript.DEFAULT_ID, "confirming an AI mode continues to AI difficulty selection")
+	feature_scene.back_to_game_mode_menu()
+	await process_frame
+	check(feature_scene.start_page == "game_mode" and feature_scene.pending_battle_type == "ai", "AI difficulty back returns to game-mode selection")
+	feature_scene.open_battle_menu()
+	await process_frame
+	battle_mode_screen = feature_scene.root.find_child("BattleModeMenuScreen", true, false)
+	battle_mode_screen.action_requested.emit("local")
+	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("GameModeSelectScreen", true, false)) and feature_scene.pending_battle_type == "local", "local battle opens the shared game-mode scene")
+	feature_scene.confirm_game_mode_selection()
+	await process_frame
+	check(feature_scene.start_page == "decks" and feature_scene.deck_library_mode == "local" and feature_scene.current_game_mode == feature_scene.GameModesScript.DEFAULT_ID, "confirming a local mode continues to P1 deck selection")
+	feature_scene.back_from_deck_library()
+	await process_frame
+	check(feature_scene.start_page == "game_mode" and feature_scene.pending_battle_type == "local", "P1 deck selection back returns to local game-mode selection")
+	feature_scene.open_battle_menu()
+	await process_frame
 	feature_scene.open_online_menu()
 	await process_frame
 	check(is_instance_valid(feature_scene.root.find_child("OnlineBrowserScreen", true, false)), "online room browser is mounted as its own scene")
 	check(is_instance_valid(feature_scene.root.find_child("OnlineBrowser", true, false)), "online screen provides the public room browser and room creation layout")
-	check(is_instance_valid(feature_scene.root.find_child("PublicRoomNameEdit", true, false)), "online screen provides a public room name field")
+	var public_room_name_edit: LineEdit = feature_scene.root.find_child("PublicRoomNameEdit", true, false)
+	var public_room_mode_select: OptionButton = feature_scene.root.find_child("PublicRoomModeSelect", true, false)
+	var create_public_room_button: Button = feature_scene.root.find_child("CreatePublicRoomButton", true, false)
+	check(is_instance_valid(public_room_name_edit), "online screen provides a public room name field")
+	check(is_instance_valid(public_room_mode_select) and public_room_mode_select.get_item_text(0) == "기본 모드", "online room creation defaults to the standard game mode")
+	check(is_instance_valid(public_room_name_edit) and is_instance_valid(public_room_mode_select) and is_instance_valid(create_public_room_button) and public_room_name_edit.get_index() < public_room_mode_select.get_index() and public_room_mode_select.get_index() < create_public_room_button.get_index(), "room mode selection sits below the room name and above the create button")
+	check(feature_scene.GameModesScript.normalize("unknown") == feature_scene.GameModesScript.DEFAULT_ID, "unknown room modes fall back to the standard mode")
 	var online_screen_texts: Array[String] = []
 	for online_control in feature_scene.root.find_children("*", "Control", true, false):
 		if online_control is Label or online_control is Button:
@@ -365,6 +398,7 @@ func run() -> void:
 	feature_scene.remote_peer_id = 2
 	feature_scene.local_lobby_ready = true
 	feature_scene.remote_lobby_ready = false
+	feature_scene.current_game_mode = feature_scene.GameModesScript.DEFAULT_ID
 	feature_scene.start_screen = true
 	feature_scene.start_page = "online"
 	feature_scene.drafting = true
@@ -372,6 +406,7 @@ func run() -> void:
 	await process_frame
 	check(is_instance_valid(feature_scene.root.find_child("OnlineLobbyScreen", true, false)), "online lobby is mounted as its own scene")
 	check(is_instance_valid(feature_scene.root.find_child("OnlineLobby", true, false)), "online connection opens a lobby that shows both players")
+	check(feature_scene.root.find_children("*", "Label", true, false).any(func(label): return (label as Label).text == "기본 모드"), "online lobby shows the selected game mode")
 	var start_online_button: Button = feature_scene.root.find_child("StartOnlineDraftButton", true, false)
 	check(is_instance_valid(start_online_button) and start_online_button.disabled, "host cannot start deck selection before the guest is ready")
 	feature_scene.online_host = false

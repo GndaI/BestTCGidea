@@ -56,7 +56,7 @@ function getRooms() {
 async function run() {
   if (!externalBase) await wait(250);
   const host = await openClient();
-  host.send(JSON.stringify({ type: Message.JOIN, id: 0, data: { code: "", public: true, name: "중계 시험방" } }));
+  host.send(JSON.stringify({ type: Message.JOIN, id: 0, data: { code: "", public: true, name: "중계 시험방", mode: "standard" } }));
   const hostId = await nextMessage(host, (message) => message.type === Message.ID);
   const hostJoin = await nextMessage(host, (message) => message.type === Message.JOIN);
   if (hostId.id !== 1 || !hostJoin.data) throw new Error("host room creation failed");
@@ -83,11 +83,11 @@ async function run() {
   await wait(50);
   const rooms = await getRooms();
   const ownRoom = rooms.find((room) => room.code === hostJoin.data);
-  if (!ownRoom || ownRoom.status !== "playing" || ownRoom.players !== 2) throw new Error("room status failed");
+  if (!ownRoom || ownRoom.status !== "playing" || ownRoom.players !== 2 || ownRoom.mode !== "standard") throw new Error("room status failed");
 
   host.close();
   guest.close();
-  console.log("ROOM RELAY CHECKS: create, join, list, seal, two-way relay | FAILURES: 0");
+  console.log("ROOM RELAY CHECKS: create, mode, join, list, seal, two-way relay | FAILURES: 0");
 }
 
 run().then(() => {
