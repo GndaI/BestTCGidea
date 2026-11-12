@@ -1,5 +1,7 @@
 extends "res://src/scenes/controllers/online_screen_controller.gd"
 
+const FateCatalog = preload("res://src/cards/fate_catalog.gd")
+
 var deck_editor_toast: PanelContainer
 var deck_editor_toast_tween: Tween
 var deck_editor_name_edit: LineEdit
@@ -102,7 +104,7 @@ func _valid_saved_fate_deck_structure(deck: Array) -> bool:
 	var copies: Dictionary = {}
 	for id_value in deck:
 		var fate_id := str(id_value).strip_edges()
-		if fate_id.is_empty():
+		if fate_id.is_empty() or not FateCatalog.is_valid_id(fate_id):
 			return false
 		copies[fate_id] = int(copies.get(fate_id, 0)) + 1
 		if int(copies[fate_id]) > 2:
@@ -668,8 +670,8 @@ func _render_fate_deck_editor_content() -> void:
 	var catalog := GridContainer.new()
 	catalog.name = "FateCardCatalog"
 	catalog.columns = 4
-	catalog.add_theme_constant_override("h_separation", 14)
-	catalog.add_theme_constant_override("v_separation", 14)
+	catalog.add_theme_constant_override("h_separation", 10)
+	catalog.add_theme_constant_override("v_separation", 10)
 	catalog_center.add_child(catalog)
 	fate_deck_catalog = catalog
 	refresh_fate_deck_editor_screen()
@@ -694,10 +696,71 @@ func refresh_fate_deck_editor_screen() -> bool:
 			slot.remove_child(child)
 			child.queue_free()
 		if slot_index < cards.size():
-			var fate_name := label_at(slot, str(cards[slot_index]), 18, Color("e8eef8"))
-			fate_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			fate_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			var fate := FateCatalog.by_id(str(cards[slot_index]))
+			var remove_button := _fate_card_button(fate, Vector2(128, 179))
+			remove_button.name = "SelectedFateCard%d" % slot_index
+			remove_button.tooltip_text += "\n\n눌러서 덱에서 제외"
+			remove_button.pressed.connect(func(): remove_fate_from_deck(slot_index))
+			slot.add_child(remove_button)
+	_rebuild_fate_card_catalog(cards)
 	return true
+
+func _fate_card_button(fate: Dictionary, minimum_size: Vector2) -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = minimum_size
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_size_override("font_size", 15)
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.text = "%s\n\n마나 %d\n\n%s" % [str(fate.get("name", "알 수 없는 운명")), int(fate.get("cost", 0)), str(fate.get("text", ""))]
+	button.tooltip_text = "%s · 마나 %d\n%s" % [str(fate.get("name", "알 수 없는 운명")), int(fate.get("cost", 0)), str(fate.get("text", ""))]
+	return button
+
+func _rebuild_fate_card_catalog(cards: Array) -> void:
+	for child in fate_deck_catalog.get_children():
+		fate_deck_catalog.remove_child(child)
+		child.queue_free()
+	for fate in FateCatalog.all():
+		var card_button := _fate_card_button(fate, Vector2(142, 205))
+		card_button.name = "FateCatalogCard_%s" % str(fate.id)
+		var copies := cards.count(str(fate.id))
+		var unavailable := cards.size() >= 12 or copies >= 2
+		card_button.disabled = unavailable
+		if copies >= 2:
+			card_button.tooltip_text += "\n\n이 운명은 이미 2장 들어 있습니다."
+		elif cards.size() >= 12:
+			card_button.tooltip_text += "\n\n운명 덱 12장이 모두 찼습니다."
+		var fate_id := str(fate.id)
+		card_button.pressed.connect(func(): add_fate_to_deck(fate_id))
+		fate_deck_catalog.add_child(card_button)
+
+func add_fate_to_deck(fate_id: String) -> void:
+	if editing_fate_deck_index < 0 or editing_fate_deck_index >= saved_fate_decks.size():
+		return
+	var cards: Array = saved_fate_decks[editing_fate_deck_index].cards
+	if not FateCatalog.is_valid_id(fate_id):
+		return
+	if cards.size() >= 12:
+		_show_deck_editor_toast("운명 덱은 12장까지 넣을 수 있습니다.")
+		return
+	if cards.count(fate_id) >= 2:
+		_show_deck_editor_toast("같은 운명은 2장까지 넣을 수 있습니다.")
+		return
+	cards.append(fate_id)
+	if not _write_saved_decks(false):
+		_show_deck_editor_toast("운명 덱을 저장할 수 없습니다.")
+	refresh_fate_deck_editor_screen()
+
+func remove_fate_from_deck(slot_index: int) -> void:
+	if editing_fate_deck_index < 0 or editing_fate_deck_index >= saved_fate_decks.size():
+		return
+	var cards: Array = saved_fate_decks[editing_fate_deck_index].cards
+	if slot_index < 0 or slot_index >= cards.size():
+		return
+	cards.remove_at(slot_index)
+	if not _write_saved_decks(false):
+		_show_deck_editor_toast("운명 덱을 저장할 수 없습니다.")
+	refresh_fate_deck_editor_screen()
 
 func update_edited_fate_deck_name(value: String) -> void:
 	if editing_fate_deck_index < 0 or editing_fate_deck_index >= saved_fate_decks.size():

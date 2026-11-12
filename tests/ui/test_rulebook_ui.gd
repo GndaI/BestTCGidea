@@ -432,7 +432,7 @@ func run() -> void:
 	await create_timer(0.6).timeout
 	check(feature_scene.deck_library_title.text == "덱" and is_instance_valid(feature_scene.root.find_child("BuiltinDefaultDeckSlot", true, false)), "the same switch returns to the original deck library")
 	feature_scene.saved_fate_decks = [{"name": "운명 편집 확인", "cards": []}]
-	check(feature_scene._valid_saved_fate_deck_structure([]) and feature_scene._valid_saved_fate_deck_structure(["a", "a", "b"]) and not feature_scene._valid_saved_fate_deck_structure(["a", "a", "a"]), "fate decks allow two copies but reject a third copy")
+	check(feature_scene._valid_saved_fate_deck_structure([]) and feature_scene._valid_saved_fate_deck_structure(["growth", "growth", "insight"]) and not feature_scene._valid_saved_fate_deck_structure(["growth", "growth", "growth"]) and not feature_scene._valid_saved_fate_deck_structure(["unknown"]), "fate decks allow two copies of registered fates and reject invalid cards")
 	feature_scene.open_fate_deck_editor(0)
 	await process_frame
 	check(is_instance_valid(feature_scene.root.find_child("FateDeckEditorScreen", true, false)), "fate-deck editor is mounted as its own scene")
@@ -440,7 +440,10 @@ func run() -> void:
 	check(fate_editor_slots.size() == 12, "fate-deck editor provides the four-by-three selected-card slots")
 	check(fate_editor_slots[0].custom_minimum_size == Vector2(128, 179), "selected fate slots use the enlarged card size")
 	var fate_catalog: GridContainer = feature_scene.root.find_child("FateCardCatalog", true, false)
-	check(is_instance_valid(fate_catalog) and fate_catalog.get_child_count() == 0, "fate catalog stays empty until fate cards are designed")
+	check(is_instance_valid(fate_catalog) and fate_catalog.get_child_count() == 7, "fate editor lists the seven initial fate cards")
+	feature_scene.saved_fate_decks[0].cards = ["growth", "growth"]
+	check(feature_scene.refresh_fate_deck_editor_screen(), "fate editor refreshes after deck contents change")
+	check(feature_scene.root.find_children("SelectedFateCard*", "Button", true, false).size() == 2 and (feature_scene.root.find_child("FateCatalogCard_growth", true, false) as Button).disabled, "selected fate cards appear in order and the third copy is disabled")
 	var fate_editor_screen: Node = feature_scene.root.find_child("FateDeckEditorScreen", true, false)
 	var fate_editor_slot: Node = feature_scene.root.find_child("FateEditorSlot0", true, false)
 	feature_scene.render()

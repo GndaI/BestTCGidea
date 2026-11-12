@@ -6,6 +6,7 @@
 
 - [RULEBOOK.md](RULEBOOK.md): 현재 게임 규칙과 확정된 예외 처리
 - [CARD-TEMPLATE.md](CARD-TEMPLATE.md): 신규 카드와 카드 리워크 작성 양식
+- [FATE-TEMPLATE.md](FATE-TEMPLATE.md): 운명 공통 사용 규칙과 작성 양식
 
 ## 개발 구조
 
