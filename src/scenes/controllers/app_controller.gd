@@ -18,6 +18,7 @@ const OnlineBrowserScreenScene = preload("res://src/scenes/screens/online/online
 const OnlineLobbyScreenScene = preload("res://src/scenes/screens/online/online_lobby_screen.tscn")
 const DeckLibraryScreenScene = preload("res://src/scenes/screens/decks/deck_library_screen.tscn")
 const DeckEditorScreenScene = preload("res://src/scenes/screens/decks/deck_editor_screen.tscn")
+const FateDeckEditorScreenScene = preload("res://src/scenes/screens/decks/fate_deck_editor_screen.tscn")
 const DraftScreenScene = preload("res://src/scenes/screens/draft/draft_screen.tscn")
 const BattleScreenScene = preload("res://src/scenes/screens/battle/battle_screen.tscn")
 const ResultOverlayScene = preload("res://src/scenes/overlays/result_overlay/result_overlay.tscn")
@@ -44,6 +45,7 @@ const SAVED_DECKS_PATH := "user://saved_decks.json"
 const ONLINE_SERVER_PATH := "user://online_server.txt"
 const DEFAULT_ONLINE_SERVER := "https://besttcgidea-render-server.onrender.com"
 const MAX_CUSTOM_DECKS := 8
+const MAX_FATE_DECKS := 9
 const ONLINE_SYNC_TIMEOUT := 4.0
 const ONLINE_SYNC_MAX_RETRIES := 2
 
@@ -192,9 +194,11 @@ var account_notice := ""
 var cloud_deck_notice := "로컬 덱을 사용하고 있습니다."
 var cloud_deck_syncing := false
 var saved_decks: Array = []
+var saved_fate_decks: Array = []
 var deck_name_text := ""
 var deck_library_mode := "manage"
 var editing_deck_index := -1
+var editing_fate_deck_index := -1
 var deck_search_text := ""
 var deck_filter_tiers: Array[int] = []
 var deck_editor_notice := ""
@@ -783,11 +787,20 @@ func back_from_deck_library() -> void:
 func back_to_deck_library() -> void:
 	pass
 
+func back_to_fate_deck_library() -> void:
+	pass
+
 func open_deck_editor(index: int) -> void:
 	pass
 
 func render_deck_editor() -> void:
 	pass
+
+func render_fate_deck_editor() -> void:
+	pass
+
+func refresh_fate_deck_editor_screen() -> bool:
+	return false
 
 func _render_deck_editor_content() -> void:
 	pass

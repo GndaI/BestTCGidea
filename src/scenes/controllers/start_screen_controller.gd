@@ -497,6 +497,8 @@ func back_to_battle_menu() -> void:
 func go_back_from_start_page() -> void:
 	if start_page == "deck_editor":
 		back_to_deck_library()
+	elif start_page == "fate_deck_editor":
+		back_to_fate_deck_library()
 	elif start_page == "decks":
 		back_from_deck_library()
 	elif start_page in ["ai", "online"]:

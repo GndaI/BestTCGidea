@@ -421,6 +421,37 @@ func run() -> void:
 	check(is_instance_valid(feature_scene.root.find_child("DeckLibraryScreen", true, false)), "deck library is mounted as its own scene")
 	check(is_instance_valid(feature_scene.root.find_child("SavedDeckLibrary", true, false)), "deck screen provides nine-slot saved-deck controls")
 	check(is_instance_valid(feature_scene.root.find_child("BuiltinDefaultDeckSlot", true, false)), "bottom-right slot provides the original default deck")
+	var deck_switch: Button = feature_scene.root.find_child("DeckLibrarySwitchButton", true, false)
+	check(is_instance_valid(deck_switch) and deck_switch.text == "운명 덱  〉" and deck_switch.custom_minimum_size == Vector2(190, 140) and deck_switch.anchor_left == 1.0, "deck management offers a large fate-deck switch at the right-center edge")
+	deck_switch.pressed.emit()
+	await create_timer(0.6).timeout
+	check(feature_scene.deck_library_title.text == "운명 덱" and feature_scene.root.find_children("FateDeckLibrarySlot*", "PanelContainer", true, false).size() == 9, "fate decks reuse the same nine-slot layout after the page transition")
+	check(deck_switch.text == "〈  덱" and deck_switch.anchor_left == 0.0 and deck_switch.visible, "the fate-deck screen returns through the matching large switch at the left-center edge")
+	check(feature_scene.root.find_child("FateDeckLibrarySlot0", true, false).custom_minimum_size == Vector2(330, 190), "fate-deck slots keep the original deck-slot size")
+	deck_switch.pressed.emit()
+	await create_timer(0.6).timeout
+	check(feature_scene.deck_library_title.text == "덱" and is_instance_valid(feature_scene.root.find_child("BuiltinDefaultDeckSlot", true, false)), "the same switch returns to the original deck library")
+	feature_scene.saved_fate_decks = [{"name": "운명 편집 확인", "cards": []}]
+	check(feature_scene._valid_saved_fate_deck_structure([]) and feature_scene._valid_saved_fate_deck_structure(["a", "a", "b"]) and not feature_scene._valid_saved_fate_deck_structure(["a", "a", "a"]), "fate decks allow two copies but reject a third copy")
+	feature_scene.open_fate_deck_editor(0)
+	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("FateDeckEditorScreen", true, false)), "fate-deck editor is mounted as its own scene")
+	var fate_editor_slots: Array[Node] = feature_scene.root.find_children("FateEditorSlot*", "PanelContainer", true, false)
+	check(fate_editor_slots.size() == 12, "fate-deck editor provides the four-by-three selected-card slots")
+	check(fate_editor_slots[0].custom_minimum_size == Vector2(128, 179), "selected fate slots use the enlarged card size")
+	var fate_catalog: GridContainer = feature_scene.root.find_child("FateCardCatalog", true, false)
+	check(is_instance_valid(fate_catalog) and fate_catalog.get_child_count() == 0, "fate catalog stays empty until fate cards are designed")
+	var fate_editor_screen: Node = feature_scene.root.find_child("FateDeckEditorScreen", true, false)
+	var fate_editor_slot: Node = feature_scene.root.find_child("FateEditorSlot0", true, false)
+	feature_scene.render()
+	await process_frame
+	check(feature_scene.root.find_child("FateDeckEditorScreen", true, false) == fate_editor_screen and feature_scene.root.find_child("FateEditorSlot0", true, false) == fate_editor_slot, "fate-deck editor refreshes without rebuilding its frame")
+	feature_scene.back_to_fate_deck_library()
+	await process_frame
+	check(feature_scene.deck_library_title.text == "운명 덱" and feature_scene.root.find_child("FateDeckLibrarySlot0", true, false).find_children("*", "Label", true, false)[0].text == "운명 편집 확인", "returning from the editor keeps the fate-deck library selected")
+	deck_switch = feature_scene.root.find_child("DeckLibrarySwitchButton", true, false)
+	deck_switch.pressed.emit()
+	await create_timer(0.6).timeout
 	feature_scene.saved_decks = [{"name": "편집 확인", "cards": feature_scene._default_deck()}]
 	var banned_deck: Array = feature_scene._default_deck()
 	banned_deck[5][1] = "gambler"

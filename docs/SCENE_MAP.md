@@ -14,6 +14,7 @@ flowchart LR
     ONLINE --> RESULT
     RESULT --> MAIN
     MAIN --> DECKS["덱 보관함<br/>DeckLibraryScreen"] --> EDITOR["덱 제작·수정<br/>DeckEditorScreen"] --> DECKS
+    DECKS --> FATEEDITOR["운명 덱 제작·수정<br/>FateDeckEditorScreen"] --> DECKS
     MAIN --> ACCOUNT["계정<br/>AccountScreen"] --> MAIN
     MAIN --> PATCH["패치노트<br/>PatchNotesScreen"] --> MAIN
     MAIN --> RULES["게임 규칙<br/>RulesScreen"] --> MAIN
@@ -43,6 +44,7 @@ flowchart LR
 - `src/scenes/screens/online/online_lobby_screen.tscn`: 온라인 대기방
 - `src/scenes/screens/decks/deck_library_screen.tscn`: 덱 보관함과 덱 선택
 - `src/scenes/screens/decks/deck_editor_screen.tscn`: 덱 제작과 수정
+- `src/scenes/screens/decks/fate_deck_editor_screen.tscn`: 운명 덱 제작과 수정
 - `src/scenes/screens/draft/draft_screen.tscn`: 12장 덱 구성
 - `src/scenes/screens/battle/battle_screen.tscn`: AI, 로컬, 온라인 공용 전투
 - `src/scenes/screens/settings/settings_screen.tscn`: 설정
