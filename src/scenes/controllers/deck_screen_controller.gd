@@ -1,5 +1,7 @@
 extends "res://src/scenes/controllers/online_screen_controller.gd"
 
+const FateCatalog = preload("res://src/cards/fate_catalog.gd")
+
 var deck_editor_toast: PanelContainer
 var deck_editor_toast_tween: Tween
 var deck_editor_name_edit: LineEdit
@@ -9,6 +11,17 @@ var deck_editor_slots: Dictionary = {}
 var deck_library_title: Label
 var deck_library_guide: Label
 var deck_library_slots: Array[Dictionary] = []
+var fate_deck_library_slots: Array[Dictionary] = []
+var deck_library_section := "cards"
+var deck_library_viewport: Control
+var deck_library_page: VBoxContainer
+var deck_library_switch_button: Button
+var deck_library_transition_tween: Tween
+var deck_library_transitioning := false
+var fate_deck_editor_name_edit: LineEdit
+var fate_deck_editor_count: Label
+var fate_deck_editor_slots: Array[PanelContainer] = []
+var fate_deck_catalog: GridContainer
 
 func reset_decks() -> void:
 	decks = [[], []]
@@ -27,6 +40,7 @@ func ai_step() -> void:
 
 func _load_saved_decks() -> void:
 	saved_decks.clear()
+	saved_fate_decks.clear()
 	var load_path := SAVED_DECKS_PATH
 	var imported_legacy := false
 	if not FileAccess.file_exists(load_path):
@@ -43,13 +57,17 @@ func _load_saved_decks() -> void:
 		if saved_decks.size() >= MAX_CUSTOM_DECKS: break
 		if entry is Dictionary and _valid_saved_deck_structure(entry.get("cards", [])):
 			saved_decks.append({"name": str(entry.get("name", "이름 없는 덱")), "cards": entry.cards.duplicate(true)})
+	for entry in parsed.get("fate_decks", []):
+		if saved_fate_decks.size() >= MAX_FATE_DECKS: break
+		if entry is Dictionary and _valid_saved_fate_deck_structure(entry.get("cards", [])):
+			saved_fate_decks.append({"name": str(entry.get("name", "이름 없는 운명 덱")), "cards": entry.cards.duplicate(true)})
 	if imported_legacy and not saved_decks.is_empty():
 		_write_saved_decks(false)
 
 func _write_saved_decks(sync_cloud: bool = true) -> bool:
 	var file := FileAccess.open(SAVED_DECKS_PATH, FileAccess.WRITE)
 	if file == null: return false
-	file.store_string(JSON.stringify({"version": 1, "decks": saved_decks}, "  "))
+	file.store_string(JSON.stringify({"version": 2, "decks": saved_decks, "fate_decks": saved_fate_decks}, "  "))
 	if sync_cloud and account_auth != null and cloud_decks != null and account_auth.is_signed_in():
 		cloud_decks.queue_save(saved_decks, account_auth.access_token(), account_auth.user_id())
 		cloud_deck_notice = "변경한 덱을 클라우드에 저장하는 중…"
@@ -80,6 +98,19 @@ func _valid_saved_deck_structure(deck: Array) -> bool:
 			seen.append(str(card.id))
 	return true
 
+func _valid_saved_fate_deck_structure(deck: Array) -> bool:
+	if deck.size() > 12:
+		return false
+	var copies: Dictionary = {}
+	for id_value in deck:
+		var fate_id := str(id_value).strip_edges()
+		if fate_id.is_empty() or not FateCatalog.is_valid_id(fate_id):
+			return false
+		copies[fate_id] = int(copies.get(fate_id, 0)) + 1
+		if int(copies[fate_id]) > 2:
+			return false
+	return true
+
 func _deck_count(deck: Array) -> int:
 	var count := 0
 	for pair in deck: count += pair.size()
@@ -103,35 +134,129 @@ func render_deck_library() -> void:
 	_render_in_screen(DeckLibraryScreenScene, _render_deck_library_content)
 
 func _render_deck_library_content() -> void:
+	if deck_library_mode != "manage":
+		deck_library_section = "cards"
 	var title := "덱" if deck_library_mode == "manage" else ("P%d 덱 선택" % [draft_player + 1] if deck_library_mode == "local" else "사용할 덱 선택")
 	var header := screen_header_at(title, back_from_deck_library)
 	deck_library_title = header.get_node("ScreenTitle") as Label
+	deck_library_switch_button = null
+	if deck_library_mode == "manage":
+		deck_library_switch_button = button_at(root.get_parent(), "", _toggle_deck_library_section)
+		deck_library_switch_button.name = "DeckLibrarySwitchButton"
+		deck_library_switch_button.custom_minimum_size = Vector2(190, 140)
+		deck_library_switch_button.add_theme_font_size_override("font_size", 28)
+		deck_library_switch_button.z_index = 4
+	deck_library_viewport = Control.new()
+	deck_library_viewport.name = "DeckLibraryViewport"
+	deck_library_viewport.clip_contents = true
+	deck_library_viewport.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	deck_library_viewport.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(deck_library_viewport)
+	_build_deck_library_page()
+	refresh_deck_library_screen()
+
+func _build_deck_library_page() -> void:
 	var page := VBoxContainer.new()
 	page.name = "SavedDeckLibrary"
-	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	page.add_theme_constant_override("separation", 14)
-	root.add_child(page)
+	deck_library_viewport.add_child(page)
+	deck_library_page = page
 	var guide_text := "덱에 커서를 올리면 포함된 카드가 표시됩니다."
 	if deck_library_mode == "ai": guide_text = "완성된 덱을 누르면 바로 AI 대전을 시작합니다."
 	elif deck_library_mode == "online": guide_text = "완성된 덱을 누르면 즉시 제출됩니다."
 	elif deck_library_mode == "local": guide_text = "P%d이 사용할 완성된 덱을 선택하세요." % [draft_player + 1]
+	elif deck_library_section == "fate": guide_text = ""
 	var guide := label_at(page, guide_text, BODY_FONT_SIZE, MUTED)
+	guide.custom_minimum_size.y = 34
 	guide.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	deck_library_guide = guide
 	var grid_center := CenterContainer.new()
+	grid_center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid_center.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page.add_child(grid_center)
 	var grid := GridContainer.new()
+	grid.name = "FateDeckGrid" if deck_library_section == "fate" else "DeckLibraryGrid"
 	grid.columns = 3
 	grid.custom_minimum_size = Vector2(1030, 620)
 	grid.add_theme_constant_override("h_separation", 20)
 	grid.add_theme_constant_override("v_separation", 20)
 	grid_center.add_child(grid)
 	deck_library_slots.clear()
-	for slot in range(9):
-		_build_deck_library_slot(grid, slot)
+	fate_deck_library_slots.clear()
+	if deck_library_section == "fate":
+		for slot in range(9):
+			_build_fate_deck_library_slot(grid, slot)
+	else:
+		for slot in range(9):
+			_build_deck_library_slot(grid, slot)
+
+func _build_fate_deck_library_slot(parent: Node, slot_index: int) -> void:
+	var panel := PanelContainer.new()
+	panel.name = "FateDeckLibrarySlot%d" % slot_index
+	panel.custom_minimum_size = Vector2(330, 190)
+	parent.add_child(panel)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 10)
+	panel.add_child(col)
+	var top := row_at(col)
+	var deck_name := label_at(top, "", BODY_FONT_SIZE, GOLD)
+	deck_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var remove := button_at(top, "삭제", func(): confirm_delete_fate_deck(slot_index))
+	remove.custom_minimum_size = Vector2(76, 42)
+	var status := label_at(col, "", BODY_FONT_SIZE, MUTED)
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var action := button_at(col, "편집하기", func(): _activate_fate_deck_library_slot(slot_index))
+	action.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	action.add_theme_font_size_override("font_size", BODY_FONT_SIZE)
+	var plus := button_at(panel, "+", func(): create_empty_fate_deck())
+	plus.add_theme_font_size_override("font_size", 54)
+	plus.tooltip_text = "운명 덱 만들기"
+	fate_deck_library_slots.append({
+		"panel": panel,
+		"content": col,
+		"name": deck_name,
+		"remove": remove,
+		"status": status,
+		"action": action,
+		"plus": plus,
+	})
+
+func _activate_fate_deck_library_slot(slot_index: int) -> void:
+	if slot_index >= 0 and slot_index < saved_fate_decks.size():
+		open_fate_deck_editor(slot_index)
+
+func _toggle_deck_library_section() -> void:
+	if deck_library_mode != "manage" or deck_library_transitioning:
+		return
+	var target := "cards" if deck_library_section == "fate" else "fate"
+	var direction := -1 if target == "cards" else 1
+	deck_library_transitioning = true
+	deck_library_switch_button.disabled = true
+	deck_library_switch_button.hide()
+	var distance := maxf(deck_library_viewport.size.x, 1.0)
+	if is_instance_valid(deck_library_transition_tween):
+		deck_library_transition_tween.kill()
+	deck_library_transition_tween = create_tween()
+	deck_library_transition_tween.tween_property(deck_library_page, "position:x", -direction * distance, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	deck_library_transition_tween.tween_callback(func(): _replace_deck_library_page(target, direction, distance))
+
+func _replace_deck_library_page(target: String, direction: int, distance: float) -> void:
+	if is_instance_valid(deck_library_page):
+		deck_library_viewport.remove_child(deck_library_page)
+		deck_library_page.queue_free()
+	deck_library_section = target
+	_build_deck_library_page()
+	deck_library_page.position.x = direction * distance
 	refresh_deck_library_screen()
+	deck_library_transition_tween = create_tween()
+	deck_library_transition_tween.tween_property(deck_library_page, "position:x", 0.0, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	deck_library_transition_tween.tween_callback(func():
+		deck_library_transitioning = false
+		if is_instance_valid(deck_library_switch_button):
+			deck_library_switch_button.disabled = false
+			deck_library_switch_button.show()
+	)
 
 func _build_deck_library_slot(parent: Node, slot_index: int) -> void:
 	var panel := PanelContainer.new()
@@ -174,9 +299,44 @@ func _activate_deck_library_slot(slot_index: int) -> void:
 		choose_saved_deck(slot_index)
 
 func refresh_deck_library_screen() -> bool:
-	if not is_instance_valid(deck_library_title) or not is_instance_valid(deck_library_guide) or deck_library_slots.size() != 9:
+	if not is_instance_valid(deck_library_title) or not is_instance_valid(deck_library_guide):
+		return false
+	if deck_library_section == "fate":
+		if fate_deck_library_slots.size() != 9:
+			return false
+		deck_library_title.text = "운명 덱"
+		deck_library_guide.text = ""
+		if is_instance_valid(deck_library_switch_button):
+			deck_library_switch_button.text = "〈  덱"
+			_position_deck_library_switch_button(true)
+		for slot_index in range(9):
+			var refs: Dictionary = fate_deck_library_slots[slot_index]
+			var panel: PanelContainer = refs.panel
+			var content: VBoxContainer = refs.content
+			var deck_name: Label = refs.name
+			var status: Label = refs.status
+			var plus: Button = refs.plus
+			if not is_instance_valid(panel):
+				return false
+			var has_deck := slot_index < saved_fate_decks.size()
+			content.visible = has_deck
+			plus.visible = not has_deck
+			if not has_deck:
+				panel.add_theme_stylebox_override("panel", box(Color("111c2e"), Color("293c55")))
+				plus.disabled = saved_fate_decks.size() >= MAX_FATE_DECKS
+				continue
+			var entry: Dictionary = saved_fate_decks[slot_index]
+			deck_name.text = _deck_display_name(entry)
+			status.text = "%d / 12장" % (entry.cards as Array).size()
+			status.add_theme_color_override("font_color", GREEN if (entry.cards as Array).size() == 12 else MUTED)
+			panel.add_theme_stylebox_override("panel", box(Color("17263d"), Color("3b5473")))
+		return true
+	if deck_library_slots.size() != 9:
 		return false
 	deck_library_title.text = "덱" if deck_library_mode == "manage" else ("P%d 덱 선택" % [draft_player + 1] if deck_library_mode == "local" else "사용할 덱 선택")
+	if is_instance_valid(deck_library_switch_button):
+		deck_library_switch_button.text = "운명 덱  〉"
+		_position_deck_library_switch_button(false)
 	var guide_text := "덱에 커서를 올리면 포함된 카드가 표시됩니다."
 	if deck_library_mode == "ai": guide_text = "완성된 덱을 누르면 바로 AI 대전을 시작합니다."
 	elif deck_library_mode == "online": guide_text = "완성된 덱을 누르면 즉시 제출됩니다."
@@ -228,6 +388,20 @@ func refresh_deck_library_screen() -> bool:
 		else:
 			panel.add_theme_stylebox_override("panel", box(Color("17263d"), Color("3b5473")))
 	return true
+
+func _position_deck_library_switch_button(on_fate_page: bool) -> void:
+	if not is_instance_valid(deck_library_switch_button):
+		return
+	if on_fate_page:
+		deck_library_switch_button.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+		deck_library_switch_button.offset_left = 20
+		deck_library_switch_button.offset_right = 210
+	else:
+		deck_library_switch_button.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+		deck_library_switch_button.offset_left = -210
+		deck_library_switch_button.offset_right = -20
+	deck_library_switch_button.offset_top = -70
+	deck_library_switch_button.offset_bottom = 70
 
 func _render_deck_slot(parent: Node, index: int) -> void:
 	var entry: Dictionary = saved_decks[index]
@@ -305,6 +479,14 @@ func create_empty_deck() -> void:
 	_write_saved_decks()
 	open_deck_editor(saved_decks.size() - 1)
 
+func create_empty_fate_deck() -> void:
+	if deck_library_mode != "manage" or saved_fate_decks.size() >= MAX_FATE_DECKS:
+		return
+	var number := saved_fate_decks.size() + 1
+	saved_fate_decks.append({"name": "새 운명 덱 %d" % number, "cards": []})
+	_write_saved_decks(false)
+	open_fate_deck_editor(saved_fate_decks.size() - 1)
+
 func choose_saved_deck(index: int) -> void:
 	if index < 0 or index >= saved_decks.size(): return
 	if deck_library_mode == "online" and local_deck_submitted: return
@@ -361,6 +543,7 @@ func submit_selected_online_deck() -> void:
 func back_from_deck_library() -> void:
 	deck_editor_notice = ""
 	if deck_library_mode == "manage":
+		deck_library_section = "cards"
 		back_to_main_menu()
 	elif deck_library_mode == "ai":
 		start_page = "ai"
@@ -371,7 +554,7 @@ func back_from_deck_library() -> void:
 			deck_editor_notice = ""
 			render()
 		else:
-			back_to_battle_menu()
+			open_game_mode_menu("local")
 	else:
 		start_page = "online"
 		stop_network()
@@ -381,6 +564,14 @@ func back_to_deck_library() -> void:
 	deck_search_text = ""
 	deck_filter_tiers.clear()
 	deck_editor_notice = ""
+	deck_library_section = "cards"
+	start_page = "decks"
+	render()
+
+func back_to_fate_deck_library() -> void:
+	editing_fate_deck_index = -1
+	deck_editor_notice = ""
+	deck_library_section = "fate"
 	start_page = "decks"
 	render()
 
@@ -393,6 +584,189 @@ func open_deck_editor(index: int) -> void:
 	deck_editor_notice = ""
 	start_page = "deck_editor"
 	render()
+
+func open_fate_deck_editor(index: int) -> void:
+	if index < 0 or index >= saved_fate_decks.size():
+		return
+	deck_library_mode = "manage"
+	editing_fate_deck_index = index
+	deck_editor_notice = ""
+	start_page = "fate_deck_editor"
+	render()
+
+func render_fate_deck_editor() -> void:
+	_render_in_screen(FateDeckEditorScreenScene, _render_fate_deck_editor_content)
+
+func _render_fate_deck_editor_content() -> void:
+	if editing_fate_deck_index < 0 or editing_fate_deck_index >= saved_fate_decks.size():
+		back_to_fate_deck_library()
+		return
+	screen_header_at("운명 덱 제작", back_to_fate_deck_library)
+	fate_deck_editor_slots.clear()
+	var body := HBoxContainer.new()
+	body.name = "FateDeckEditor"
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 18)
+	root.add_child(body)
+	var left_panel := PanelContainer.new()
+	left_panel.custom_minimum_size = Vector2(600, 710)
+	left_panel.add_theme_stylebox_override("panel", box(Color("142238"), Color("344b68")))
+	body.add_child(left_panel)
+	var left := VBoxContainer.new()
+	left.name = "FateEditorDeckColumn"
+	left.add_theme_constant_override("separation", 14)
+	left_panel.add_child(left)
+	var name_row := row_at(left)
+	var name_edit := LineEdit.new()
+	name_edit.name = "FateDeckNameEdit"
+	name_edit.text = str(saved_fate_decks[editing_fate_deck_index].name)
+	name_edit.placeholder_text = "운명 덱 이름"
+	name_edit.max_length = 24
+	name_edit.custom_minimum_size = Vector2(380, 46)
+	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_edit.text_changed.connect(update_edited_fate_deck_name)
+	name_row.add_child(name_edit)
+	fate_deck_editor_name_edit = name_edit
+	var delete_button := button_at(name_row, "삭제", func(): confirm_delete_fate_deck(editing_fate_deck_index))
+	delete_button.custom_minimum_size = Vector2(90, 46)
+	var selected_row := row_at(left)
+	var selected_title := label_at(selected_row, "선택한 운명", BODY_FONT_SIZE, GOLD)
+	selected_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var count := label_at(selected_row, "", BODY_FONT_SIZE, MUTED)
+	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	fate_deck_editor_count = count
+	var grid_center := CenterContainer.new()
+	grid_center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid_center.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.add_child(grid_center)
+	var selected_grid := GridContainer.new()
+	selected_grid.name = "FateDeckSelectedGrid"
+	selected_grid.columns = 4
+	selected_grid.add_theme_constant_override("h_separation", 12)
+	selected_grid.add_theme_constant_override("v_separation", 12)
+	grid_center.add_child(selected_grid)
+	for slot_index in range(12):
+		var slot := PanelContainer.new()
+		slot.name = "FateEditorSlot%d" % slot_index
+		slot.custom_minimum_size = Vector2(128, 179)
+		slot.add_theme_stylebox_override("panel", box(Color("111c2e"), Color("31465f")))
+		selected_grid.add_child(slot)
+		fate_deck_editor_slots.append(slot)
+	var right_panel := PanelContainer.new()
+	right_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right_panel.add_theme_stylebox_override("panel", box(Color("142238"), Color("344b68")))
+	body.add_child(right_panel)
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 14)
+	right_panel.add_child(right)
+	label_at(right, "운명", BODY_FONT_SIZE, GOLD)
+	var catalog_center := CenterContainer.new()
+	catalog_center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	catalog_center.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(catalog_center)
+	var catalog := GridContainer.new()
+	catalog.name = "FateCardCatalog"
+	catalog.columns = 4
+	catalog.add_theme_constant_override("h_separation", 10)
+	catalog.add_theme_constant_override("v_separation", 10)
+	catalog_center.add_child(catalog)
+	fate_deck_catalog = catalog
+	refresh_fate_deck_editor_screen()
+
+func refresh_fate_deck_editor_screen() -> bool:
+	if editing_fate_deck_index < 0 or editing_fate_deck_index >= saved_fate_decks.size():
+		return false
+	if fate_deck_editor_slots.size() != 12 or not is_instance_valid(fate_deck_catalog):
+		return false
+	var entry: Dictionary = saved_fate_decks[editing_fate_deck_index]
+	var cards: Array = entry.cards
+	if is_instance_valid(fate_deck_editor_name_edit) and not fate_deck_editor_name_edit.has_focus():
+		fate_deck_editor_name_edit.text = str(entry.name)
+	if is_instance_valid(fate_deck_editor_count):
+		fate_deck_editor_count.text = "%d / 12" % cards.size()
+		fate_deck_editor_count.add_theme_color_override("font_color", GREEN if cards.size() == 12 else MUTED)
+	for slot_index in range(12):
+		var slot: PanelContainer = fate_deck_editor_slots[slot_index]
+		if not is_instance_valid(slot):
+			return false
+		for child in slot.get_children():
+			slot.remove_child(child)
+			child.queue_free()
+		if slot_index < cards.size():
+			var fate := FateCatalog.by_id(str(cards[slot_index]))
+			var remove_button := _fate_card_button(fate, Vector2(128, 179))
+			remove_button.name = "SelectedFateCard%d" % slot_index
+			remove_button.tooltip_text += "\n\n눌러서 덱에서 제외"
+			remove_button.pressed.connect(func(): remove_fate_from_deck(slot_index))
+			slot.add_child(remove_button)
+	_rebuild_fate_card_catalog(cards)
+	return true
+
+func _fate_card_button(fate: Dictionary, minimum_size: Vector2) -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = minimum_size
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	button.add_theme_font_size_override("font_size", 15)
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.text = "%s\n\n마나 %d\n\n%s" % [str(fate.get("name", "알 수 없는 운명")), int(fate.get("cost", 0)), str(fate.get("text", ""))]
+	button.tooltip_text = "%s · 마나 %d\n%s" % [str(fate.get("name", "알 수 없는 운명")), int(fate.get("cost", 0)), str(fate.get("text", ""))]
+	return button
+
+func _rebuild_fate_card_catalog(cards: Array) -> void:
+	for child in fate_deck_catalog.get_children():
+		fate_deck_catalog.remove_child(child)
+		child.queue_free()
+	for fate in FateCatalog.all():
+		var card_button := _fate_card_button(fate, Vector2(142, 205))
+		card_button.name = "FateCatalogCard_%s" % str(fate.id)
+		var copies := cards.count(str(fate.id))
+		var unavailable := cards.size() >= 12 or copies >= 2
+		card_button.disabled = unavailable
+		if copies >= 2:
+			card_button.tooltip_text += "\n\n이 운명은 이미 2장 들어 있습니다."
+		elif cards.size() >= 12:
+			card_button.tooltip_text += "\n\n운명 덱 12장이 모두 찼습니다."
+		var fate_id := str(fate.id)
+		card_button.pressed.connect(func(): add_fate_to_deck(fate_id))
+		fate_deck_catalog.add_child(card_button)
+
+func add_fate_to_deck(fate_id: String) -> void:
+	if editing_fate_deck_index < 0 or editing_fate_deck_index >= saved_fate_decks.size():
+		return
+	var cards: Array = saved_fate_decks[editing_fate_deck_index].cards
+	if not FateCatalog.is_valid_id(fate_id):
+		return
+	if cards.size() >= 12:
+		_show_deck_editor_toast("운명 덱은 12장까지 넣을 수 있습니다.")
+		return
+	if cards.count(fate_id) >= 2:
+		_show_deck_editor_toast("같은 운명은 2장까지 넣을 수 있습니다.")
+		return
+	cards.append(fate_id)
+	if not _write_saved_decks(false):
+		_show_deck_editor_toast("운명 덱을 저장할 수 없습니다.")
+	refresh_fate_deck_editor_screen()
+
+func remove_fate_from_deck(slot_index: int) -> void:
+	if editing_fate_deck_index < 0 or editing_fate_deck_index >= saved_fate_decks.size():
+		return
+	var cards: Array = saved_fate_decks[editing_fate_deck_index].cards
+	if slot_index < 0 or slot_index >= cards.size():
+		return
+	cards.remove_at(slot_index)
+	if not _write_saved_decks(false):
+		_show_deck_editor_toast("운명 덱을 저장할 수 없습니다.")
+	refresh_fate_deck_editor_screen()
+
+func update_edited_fate_deck_name(value: String) -> void:
+	if editing_fate_deck_index < 0 or editing_fate_deck_index >= saved_fate_decks.size():
+		return
+	saved_fate_decks[editing_fate_deck_index].name = value
+	_write_saved_decks(false)
 
 func render_deck_editor() -> void:
 	_render_in_screen(DeckEditorScreenScene, _render_deck_editor_content)
@@ -795,6 +1169,32 @@ func delete_saved_deck(index: int) -> void:
 	if not _write_saved_decks(): info = "덱 목록 파일을 갱신할 수 없습니다."
 	if deleting_open_editor:
 		editing_deck_index = -1
+		start_page = "decks"
+	render()
+
+func confirm_delete_fate_deck(index: int) -> void:
+	if index < 0 or index >= saved_fate_decks.size():
+		return
+	var dialog := ConfirmationDialog.new()
+	dialog.title = "운명 덱 삭제"
+	dialog.dialog_text = "‘%s’ 운명 덱을 삭제할까요?" % str(saved_fate_decks[index].name)
+	dialog.confirmed.connect(func(): delete_fate_deck(index))
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(430, 180))
+	dialog.visibility_changed.connect(func(): if not dialog.visible: dialog.queue_free())
+
+func delete_fate_deck(index: int) -> void:
+	if index < 0 or index >= saved_fate_decks.size():
+		return
+	var deleting_open_editor := start_page == "fate_deck_editor" and editing_fate_deck_index == index
+	saved_fate_decks.remove_at(index)
+	if editing_fate_deck_index > index:
+		editing_fate_deck_index -= 1
+	if not _write_saved_decks(false):
+		_show_deck_editor_toast("운명 덱 목록을 저장할 수 없습니다.")
+	if deleting_open_editor:
+		editing_fate_deck_index = -1
+		deck_library_section = "fate"
 		start_page = "decks"
 	render()
 

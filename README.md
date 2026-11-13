@@ -74,4 +74,3 @@ godot --headless --path . --script res://tests/ui/test_rulebook_ui.gd
 ```
 
 test_rulebook은 개별 효과와 일반 덱 자동 대전을 검사합니다.
-

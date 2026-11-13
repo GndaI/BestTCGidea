@@ -1,5 +1,7 @@
 extends SceneTree
 
+const FateCatalog = preload("res://src/cards/fate_catalog.gd")
+
 var checks := 0
 var failures := 0
 
@@ -38,6 +40,10 @@ func hit(b: TCGBattle, target: Array, amount: int, source: Array = []) -> void:
 func run() -> void:
 	print("RULEBOOK: start")
 	check(TCGCards.all().size() == 22, "22 registered rulebook cards")
+	var fates := FateCatalog.all()
+	check(fates.size() == 7, "seven initial fate cards")
+	check(fates.map(func(fate): return int(fate.cost)) == [3, 3, 3, 0, 0, 1, 4], "fate mana costs match the initial design")
+	check(FateCatalog.by_id("growth").effect == "grant_stats1" and FateCatalog.by_id("insight").effect == "draw_fate2" and FateCatalog.by_id("destruction").effect == "damage6", "fate effects keep their data identifiers")
 	for tier in range(1, 7):
 		var expected_pool_size := 2 if tier == 6 else (4 if tier in [1, 3, 4, 5] else 3)
 		check(TCGCards.pool(tier).size() == expected_pool_size, "pool tier %d" % tier)

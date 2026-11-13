@@ -27,7 +27,7 @@ func run() -> void:
 	guest.identity_ready.connect(func(id, _code): guest_ready = id == 2)
 	guest.game_message.connect(_guest_message)
 	guest.failed.connect(func(message): failure = message)
-	host.create_public_room(URL, "Godot 중계 시험방")
+	host.create_public_room(URL, "Godot 중계 시험방", "standard")
 	for _step in range(600):
 		if relay_ok and reply_ok:
 			print("GODOT ROOM RELAY CHECKS: native socket and two-way payload | FAILURES: 0")

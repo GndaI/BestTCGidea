@@ -17,17 +17,20 @@ func _refresh_active_render(render_key: String) -> bool:
 	match render_key:
 		"start:decks": return refresh_deck_library_screen()
 		"start:deck_editor": return refresh_deck_editor_screen()
+		"start:fate_deck_editor": return refresh_fate_deck_editor_screen()
 		"battle": return refresh_battle_screen()
 	return false
 
 func render_start_screen() -> void:
 	match start_page:
 		"battle": render_battle_menu()
+		"game_mode": render_game_mode_menu()
 		"ai": render_ai_menu()
 		"online": render_online_menu()
 		"account": render_account()
 		"decks": render_deck_library()
 		"deck_editor": render_deck_editor()
+		"fate_deck_editor": render_fate_deck_editor()
 		"patch_notes": render_patch_notes()
 		"settings": render_settings_screen()
 		"rules": render_rules_screen()

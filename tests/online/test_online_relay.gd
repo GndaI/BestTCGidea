@@ -26,12 +26,17 @@ func run() -> void:
 	host.online_server_address = server_address
 	guest.online_server_address = server_address
 	host.public_room_name = "윈도우 통합 시험방"
+	host.selected_game_mode = host.GameModesScript.DEFAULT_ID
 	host.create_public_web_room()
 	for _step in range(1600):
 		if not join_started and host.current_room_code.length() == 6:
 			join_started = true
 			guest.join_public_room(host.current_room_code)
 		if not draft_started and host.online_state == "lobby" and guest.online_state == "lobby":
+			if host.current_game_mode != host.GameModesScript.DEFAULT_ID or guest.current_game_mode != host.GameModesScript.DEFAULT_ID:
+				push_error("room game mode did not synchronize")
+				quit(1)
+				return
 			if not guest.local_lobby_ready:
 				guest.toggle_online_ready()
 			elif host.remote_lobby_ready:

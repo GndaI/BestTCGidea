@@ -348,15 +348,64 @@ func render_battle_menu() -> void:
 	screen.back_requested.connect(back_to_main_menu)
 	screen.action_requested.connect(func(action: String):
 		match action:
-			"ai": open_ai_menu()
-			"local": start_local_draft()
+			"ai": open_game_mode_menu("ai")
+			"local": open_game_mode_menu("local")
 			"online": open_online_menu()
 	)
 	root.add_child(screen)
 
+func render_game_mode_menu() -> void:
+	_render_in_screen(GameModeSelectScreenScene, _render_game_mode_menu_content)
+
+func _render_game_mode_menu_content() -> void:
+	screen_header_at("게임 모드", back_to_battle_menu)
+	var page := CenterContainer.new()
+	page.name = "GameModeSelectPage"
+	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(page)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(680, 420)
+	panel.add_theme_stylebox_override("panel", box(PANEL, Color("3b5472")))
+	page.add_child(panel)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 20)
+	panel.add_child(content)
+	var battle_type_label := label_at(content, "AI 대전" if pending_battle_type == "ai" else "로컬 대전", MENU_FONT_SIZE, GOLD)
+	battle_type_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label_at(content, "게임 모드", 19, Color("ecf2fc"))
+	var mode_select := OptionButton.new()
+	mode_select.name = "OfflineGameModeSelect"
+	mode_select.custom_minimum_size.y = 62
+	selected_game_mode = GameModesScript.normalize(selected_game_mode)
+	var selected_mode_index := 0
+	for mode in GameModesScript.all():
+		var mode_index := mode_select.item_count
+		mode_select.add_item(str(mode.name))
+		mode_select.set_item_metadata(mode_index, str(mode.id))
+		if str(mode.id) == selected_game_mode:
+			selected_mode_index = mode_index
+	mode_select.select(selected_mode_index)
+	content.add_child(mode_select)
+	var description := label_at(content, GameModesScript.description(selected_game_mode), 18, MUTED)
+	description.name = "OfflineGameModeDescription"
+	description.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	mode_select.item_selected.connect(func(index):
+		selected_game_mode = GameModesScript.normalize(str(mode_select.get_item_metadata(index)))
+		description.text = GameModesScript.description(selected_game_mode)
+	)
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_child(spacer)
+	var next_text := "AI 난이도 선택" if pending_battle_type == "ai" else "덱 선택"
+	var confirm_button := main_menu_button(content, next_text, confirm_game_mode_selection)
+	confirm_button.name = "ConfirmGameModeButton"
+	confirm_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+
 func render_ai_menu() -> void:
 	var screen = AIModeMenuScene.instantiate()
-	screen.back_requested.connect(back_to_battle_menu)
+	screen.back_requested.connect(back_to_game_mode_menu)
 	screen.action_requested.connect(func(action: String):
 		match action:
 			"ai_easy": start_ai_draft()
@@ -394,12 +443,31 @@ func _render_online_menu_content() -> void:
 		notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 func open_battle_menu() -> void:
+	pending_battle_type = ""
 	start_page = "battle"
 	render()
 
+func open_game_mode_menu(battle_type: String) -> void:
+	if battle_type not in ["ai", "local"]:
+		return
+	pending_battle_type = battle_type
+	start_page = "game_mode"
+	render()
+
+func confirm_game_mode_selection() -> void:
+	current_game_mode = GameModesScript.normalize(selected_game_mode)
+	if pending_battle_type == "ai":
+		open_ai_menu()
+	elif pending_battle_type == "local":
+		start_local_draft()
+
 func open_ai_menu() -> void:
+	pending_battle_type = "ai"
 	start_page = "ai"
 	render()
+
+func back_to_game_mode_menu() -> void:
+	open_game_mode_menu("ai")
 
 func open_online_menu() -> void:
 	start_page = "online"
@@ -429,6 +497,8 @@ func back_to_battle_menu() -> void:
 func go_back_from_start_page() -> void:
 	if start_page == "deck_editor":
 		back_to_deck_library()
+	elif start_page == "fate_deck_editor":
+		back_to_fate_deck_library()
 	elif start_page == "decks":
 		back_from_deck_library()
 	elif start_page in ["ai", "online"]:

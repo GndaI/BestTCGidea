@@ -345,11 +345,44 @@ func run() -> void:
 	check("일치하지 않습니다" in feature_scene.account_notice, "account signup blocks mismatched password confirmation before a network request")
 	feature_scene.open_battle_menu()
 	await process_frame
+	var battle_mode_screen: Control = feature_scene.root.find_child("BattleModeMenuScreen", true, false)
+	check(is_instance_valid(battle_mode_screen), "battle menu is mounted before choosing a game mode")
+	battle_mode_screen.action_requested.emit("ai")
+	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("GameModeSelectScreen", true, false)) and feature_scene.pending_battle_type == "ai", "AI battle opens the shared game-mode scene")
+	var offline_mode_select: OptionButton = feature_scene.root.find_child("OfflineGameModeSelect", true, false)
+	check(is_instance_valid(offline_mode_select) and offline_mode_select.get_item_text(0) == "기본 모드", "offline game-mode scene defaults to the standard mode")
+	feature_scene.confirm_game_mode_selection()
+	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("AIModeMenuScreen", true, false)) and feature_scene.current_game_mode == feature_scene.GameModesScript.DEFAULT_ID, "confirming an AI mode continues to AI difficulty selection")
+	feature_scene.back_to_game_mode_menu()
+	await process_frame
+	check(feature_scene.start_page == "game_mode" and feature_scene.pending_battle_type == "ai", "AI difficulty back returns to game-mode selection")
+	feature_scene.open_battle_menu()
+	await process_frame
+	battle_mode_screen = feature_scene.root.find_child("BattleModeMenuScreen", true, false)
+	battle_mode_screen.action_requested.emit("local")
+	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("GameModeSelectScreen", true, false)) and feature_scene.pending_battle_type == "local", "local battle opens the shared game-mode scene")
+	feature_scene.confirm_game_mode_selection()
+	await process_frame
+	check(feature_scene.start_page == "decks" and feature_scene.deck_library_mode == "local" and feature_scene.current_game_mode == feature_scene.GameModesScript.DEFAULT_ID, "confirming a local mode continues to P1 deck selection")
+	feature_scene.back_from_deck_library()
+	await process_frame
+	check(feature_scene.start_page == "game_mode" and feature_scene.pending_battle_type == "local", "P1 deck selection back returns to local game-mode selection")
+	feature_scene.open_battle_menu()
+	await process_frame
 	feature_scene.open_online_menu()
 	await process_frame
 	check(is_instance_valid(feature_scene.root.find_child("OnlineBrowserScreen", true, false)), "online room browser is mounted as its own scene")
 	check(is_instance_valid(feature_scene.root.find_child("OnlineBrowser", true, false)), "online screen provides the public room browser and room creation layout")
-	check(is_instance_valid(feature_scene.root.find_child("PublicRoomNameEdit", true, false)), "online screen provides a public room name field")
+	var public_room_name_edit: LineEdit = feature_scene.root.find_child("PublicRoomNameEdit", true, false)
+	var public_room_mode_select: OptionButton = feature_scene.root.find_child("PublicRoomModeSelect", true, false)
+	var create_public_room_button: Button = feature_scene.root.find_child("CreatePublicRoomButton", true, false)
+	check(is_instance_valid(public_room_name_edit), "online screen provides a public room name field")
+	check(is_instance_valid(public_room_mode_select) and public_room_mode_select.get_item_text(0) == "기본 모드", "online room creation defaults to the standard game mode")
+	check(is_instance_valid(public_room_name_edit) and is_instance_valid(public_room_mode_select) and is_instance_valid(create_public_room_button) and public_room_name_edit.get_index() < public_room_mode_select.get_index() and public_room_mode_select.get_index() < create_public_room_button.get_index(), "room mode selection sits below the room name and above the create button")
+	check(feature_scene.GameModesScript.normalize("unknown") == feature_scene.GameModesScript.DEFAULT_ID, "unknown room modes fall back to the standard mode")
 	var online_screen_texts: Array[String] = []
 	for online_control in feature_scene.root.find_children("*", "Control", true, false):
 		if online_control is Label or online_control is Button:
@@ -365,6 +398,7 @@ func run() -> void:
 	feature_scene.remote_peer_id = 2
 	feature_scene.local_lobby_ready = true
 	feature_scene.remote_lobby_ready = false
+	feature_scene.current_game_mode = feature_scene.GameModesScript.DEFAULT_ID
 	feature_scene.start_screen = true
 	feature_scene.start_page = "online"
 	feature_scene.drafting = true
@@ -372,6 +406,7 @@ func run() -> void:
 	await process_frame
 	check(is_instance_valid(feature_scene.root.find_child("OnlineLobbyScreen", true, false)), "online lobby is mounted as its own scene")
 	check(is_instance_valid(feature_scene.root.find_child("OnlineLobby", true, false)), "online connection opens a lobby that shows both players")
+	check(feature_scene.root.find_children("*", "Label", true, false).any(func(label): return (label as Label).text == "기본 모드"), "online lobby shows the selected game mode")
 	var start_online_button: Button = feature_scene.root.find_child("StartOnlineDraftButton", true, false)
 	check(is_instance_valid(start_online_button) and start_online_button.disabled, "host cannot start deck selection before the guest is ready")
 	feature_scene.online_host = false
@@ -386,6 +421,40 @@ func run() -> void:
 	check(is_instance_valid(feature_scene.root.find_child("DeckLibraryScreen", true, false)), "deck library is mounted as its own scene")
 	check(is_instance_valid(feature_scene.root.find_child("SavedDeckLibrary", true, false)), "deck screen provides nine-slot saved-deck controls")
 	check(is_instance_valid(feature_scene.root.find_child("BuiltinDefaultDeckSlot", true, false)), "bottom-right slot provides the original default deck")
+	var deck_switch: Button = feature_scene.root.find_child("DeckLibrarySwitchButton", true, false)
+	check(is_instance_valid(deck_switch) and deck_switch.text == "운명 덱  〉" and deck_switch.custom_minimum_size == Vector2(190, 140) and deck_switch.anchor_left == 1.0, "deck management offers a large fate-deck switch at the right-center edge")
+	deck_switch.pressed.emit()
+	await create_timer(0.6).timeout
+	check(feature_scene.deck_library_title.text == "운명 덱" and feature_scene.root.find_children("FateDeckLibrarySlot*", "PanelContainer", true, false).size() == 9, "fate decks reuse the same nine-slot layout after the page transition")
+	check(deck_switch.text == "〈  덱" and deck_switch.anchor_left == 0.0 and deck_switch.visible, "the fate-deck screen returns through the matching large switch at the left-center edge")
+	check(feature_scene.root.find_child("FateDeckLibrarySlot0", true, false).custom_minimum_size == Vector2(330, 190), "fate-deck slots keep the original deck-slot size")
+	deck_switch.pressed.emit()
+	await create_timer(0.6).timeout
+	check(feature_scene.deck_library_title.text == "덱" and is_instance_valid(feature_scene.root.find_child("BuiltinDefaultDeckSlot", true, false)), "the same switch returns to the original deck library")
+	feature_scene.saved_fate_decks = [{"name": "운명 편집 확인", "cards": []}]
+	check(feature_scene._valid_saved_fate_deck_structure([]) and feature_scene._valid_saved_fate_deck_structure(["growth", "growth", "insight"]) and not feature_scene._valid_saved_fate_deck_structure(["growth", "growth", "growth"]) and not feature_scene._valid_saved_fate_deck_structure(["unknown"]), "fate decks allow two copies of registered fates and reject invalid cards")
+	feature_scene.open_fate_deck_editor(0)
+	await process_frame
+	check(is_instance_valid(feature_scene.root.find_child("FateDeckEditorScreen", true, false)), "fate-deck editor is mounted as its own scene")
+	var fate_editor_slots: Array[Node] = feature_scene.root.find_children("FateEditorSlot*", "PanelContainer", true, false)
+	check(fate_editor_slots.size() == 12, "fate-deck editor provides the four-by-three selected-card slots")
+	check(fate_editor_slots[0].custom_minimum_size == Vector2(128, 179), "selected fate slots use the enlarged card size")
+	var fate_catalog: GridContainer = feature_scene.root.find_child("FateCardCatalog", true, false)
+	check(is_instance_valid(fate_catalog) and fate_catalog.get_child_count() == 7, "fate editor lists the seven initial fate cards")
+	feature_scene.saved_fate_decks[0].cards = ["growth", "growth"]
+	check(feature_scene.refresh_fate_deck_editor_screen(), "fate editor refreshes after deck contents change")
+	check(feature_scene.root.find_children("SelectedFateCard*", "Button", true, false).size() == 2 and (feature_scene.root.find_child("FateCatalogCard_growth", true, false) as Button).disabled, "selected fate cards appear in order and the third copy is disabled")
+	var fate_editor_screen: Node = feature_scene.root.find_child("FateDeckEditorScreen", true, false)
+	var fate_editor_slot: Node = feature_scene.root.find_child("FateEditorSlot0", true, false)
+	feature_scene.render()
+	await process_frame
+	check(feature_scene.root.find_child("FateDeckEditorScreen", true, false) == fate_editor_screen and feature_scene.root.find_child("FateEditorSlot0", true, false) == fate_editor_slot, "fate-deck editor refreshes without rebuilding its frame")
+	feature_scene.back_to_fate_deck_library()
+	await process_frame
+	check(feature_scene.deck_library_title.text == "운명 덱" and feature_scene.root.find_child("FateDeckLibrarySlot0", true, false).find_children("*", "Label", true, false)[0].text == "운명 편집 확인", "returning from the editor keeps the fate-deck library selected")
+	deck_switch = feature_scene.root.find_child("DeckLibrarySwitchButton", true, false)
+	deck_switch.pressed.emit()
+	await create_timer(0.6).timeout
 	feature_scene.saved_decks = [{"name": "편집 확인", "cards": feature_scene._default_deck()}]
 	var banned_deck: Array = feature_scene._default_deck()
 	banned_deck[5][1] = "gambler"
