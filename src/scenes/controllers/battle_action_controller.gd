@@ -63,6 +63,7 @@ func select_spell(index: int) -> void:
 	render()
 
 func select_fate(index: int) -> void:
+	if not GameModesScript.uses_fates(current_game_mode): return
 	var owner := battle.active
 	if battle.phase != "action" or battle.priority != owner or not battle.stack.is_empty() or waiting_for_sync or is_ai_turn(): return
 	if online_mode and owner != local_player: return
@@ -71,7 +72,7 @@ func select_fate(index: int) -> void:
 	var fate := FateCatalog.by_id(str(hand[index]))
 	if fate.is_empty(): return
 	selection = {"action":"fate", "owner":owner, "index":index, "mode":"payer", "kind":"ally", "effect":str(fate.effect), "fate":fate}
-	selection.prompt = "비용 %d을 전부 지불할 아군 유닛을 선택하세요." % int(fate.cost)
+	selection.prompt = "비용 %d을 전부 지불할 아군 생명을 선택하세요." % int(fate.cost)
 	render()
 
 func select_replay(c: Dictionary) -> void:

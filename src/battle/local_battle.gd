@@ -2,6 +2,7 @@ class_name TCGLocalBattle
 extends RefCounted
 
 const FateCatalog = preload("res://src/cards/fate_catalog.gd")
+const GameModes = preload("res://src/battle/game_modes.gd")
 
 const TURN_START := "turn_start"
 const PRODUCTION := "production"
@@ -37,8 +38,9 @@ var finishing := false
 var rng := RandomNumberGenerator.new()
 var presentation_enabled := false
 var pending_roll: Dictionary = {}
+var game_mode := GameModes.DEFAULT_ID
 
-func start(decks: Array, fate_decks: Array = []) -> void:
+func start(decks: Array, fate_decks: Array = [], mode_id: String = GameModes.DEFAULT_ID) -> void:
 	next_uid = 1
 	income_choices.clear()
 	reactions.clear()
@@ -47,13 +49,14 @@ func start(decks: Array, fate_decks: Array = []) -> void:
 	choice.clear()
 	pending_roll.clear()
 	finishing = false
+	game_mode = GameModes.normalize(mode_id)
 	rng.randomize()
 	players.clear()
 	for p in range(2):
-		var fate_deck: Array = fate_decks[p].duplicate() if fate_decks.size() == 2 else FateCatalog.default_deck()
+		var fate_deck: Array = (fate_decks[p].duplicate() if fate_decks.size() == 2 else FateCatalog.default_deck()) if GameModes.uses_fates(game_mode) else []
 		fate_deck.shuffle()
 		players.append({"deck": decks[p].duplicate(true), "fate_deck": fate_deck, "fate_hand": [], "fate_used": [], "units": [], "hand": [], "used": [], "revealed": 0, "own_turn": 0, "special": false})
-		draw_fates(p, 2)
+		if GameModes.uses_fates(game_mode): draw_fates(p, 2)
 	active = 0
 	priority = 0
 	turn_index = 0
@@ -172,7 +175,7 @@ func begin_turn() -> void:
 	turn_phase = TURN_START
 	active = [0, 1, 1, 0][turn_index % 4] if turn_index < 12 else (1 if turn_index % 2 == 0 else 0)
 	players[active].own_turn += 1
-	draw_fates(active, 1)
+	if GameModes.uses_fates(game_mode): draw_fates(active, 1)
 	priority = active
 	passes = 0
 	ending = false
@@ -451,6 +454,7 @@ func cast_spell(owner: int, hand_index: int, target: Array, copied_unit: Array =
 	return true
 
 func activate_fate(owner: int, hand_index: int, payer: Array, target: Array) -> bool:
+	if not GameModes.uses_fates(game_mode): return false
 	if phase != "action" or owner != active or priority != owner or not stack.is_empty() or ending:
 		return false
 	if hand_index < 0 or hand_index >= players[owner].fate_hand.size(): return false

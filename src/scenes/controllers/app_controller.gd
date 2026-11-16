@@ -45,7 +45,7 @@ const SAVED_DECKS_PATH := "user://saved_decks.json"
 const ONLINE_SERVER_PATH := "user://online_server.txt"
 const DEFAULT_ONLINE_SERVER := "https://besttcgidea-render-server.onrender.com"
 const MAX_CUSTOM_DECKS := 8
-const MAX_FATE_DECKS := 9
+const MAX_FATE_DECKS := 8
 const ONLINE_SYNC_TIMEOUT := 4.0
 const ONLINE_SYNC_MAX_RETRIES := 2
 

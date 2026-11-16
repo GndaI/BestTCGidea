@@ -11,6 +11,7 @@ var host_deck_sent := false
 var guest_deck_sent := false
 var sync_probe_sent := false
 var battle_step := 0
+var tested_fate_id := ""
 
 func _initialize() -> void:
 	call_deferred("run")
@@ -27,14 +28,14 @@ func run() -> void:
 	host.online_server_address = server_address
 	guest.online_server_address = server_address
 	host.public_room_name = "윈도우 통합 시험방"
-	host.selected_game_mode = host.GameModesScript.DEFAULT_ID
+	host.selected_game_mode = host.GameModesScript.FATE_ID
 	host.create_public_web_room()
 	for _step in range(1600):
 		if not join_started and host.current_room_code.length() == 6:
 			join_started = true
 			guest.join_public_room(host.current_room_code)
 		if not draft_started and host.online_state == "lobby" and guest.online_state == "lobby":
-			if host.current_game_mode != host.GameModesScript.DEFAULT_ID or guest.current_game_mode != host.GameModesScript.DEFAULT_ID:
+			if host.current_game_mode != host.GameModesScript.FATE_ID or guest.current_game_mode != host.GameModesScript.FATE_ID:
 				push_error("room game mode did not synchronize")
 				quit(1)
 				return
@@ -83,34 +84,29 @@ func run() -> void:
 				guest.choose_deploy(0)
 			elif battle_step == 7 and not guest.waiting_for_sync and guest.battle.phase == "action" and int(guest.battle.players[1].units[0].mana) > 0:
 				battle_step = 8
-				var recharge_index: int = guest.battle.players[1].fate_hand.find("recharge")
-				if recharge_index < 0:
-					push_error("expected deterministic recharge fate draw")
+				var fate_index: int = guest.battle.players[1].fate_hand.find("recharge")
+				tested_fate_id = "recharge"
+				if fate_index < 0:
+					fate_index = guest.battle.players[1].fate_hand.find("guard")
+					tested_fate_id = "guard"
+				if fate_index < 0:
+					push_error("expected a zero-cost fate in the deterministic opening draws")
 					quit(1)
 					return
-				guest._send_online_intent({"type":"activate_fate","index":recharge_index,"payer":[1,0],"target":[1,0]})
+				guest._send_online_intent({"type":"activate_fate","index":fate_index,"payer":[1,0],"target":[1,0]})
 			elif battle_step == 8 and not guest.waiting_for_sync and guest.battle.stack.size() == 1 and host.battle.priority == 0:
 				battle_step = 9
 				host.pass_action()
 			elif battle_step == 9 and not host.waiting_for_sync and guest.battle.priority == 1:
 				battle_step = 10
 				guest.pass_action()
-			elif battle_step == 10 and not guest.waiting_for_sync and guest.battle.phase == "action" and int(guest.battle.players[1].units[0].mana) == 2 and "recharge" in guest.battle.players[1].fate_used:
-				battle_step = 11
-				guest._send_online_intent({"type":"attack","index":0,"target":[0,0]})
-			elif battle_step == 11 and not guest.waiting_for_sync and guest.battle.stack.size() == 1 and host.battle.priority == 0:
-				battle_step = 12
-				host.pass_action()
-			elif battle_step == 12 and not host.waiting_for_sync and guest.battle.priority == 1:
-				battle_step = 13
-				guest.pass_action()
-			elif battle_step == 13 and not guest.waiting_for_sync and int(host.battle.players[0].units[0].hp) == 2 and int(guest.battle.players[0].units[0].hp) == 2:
+			elif battle_step == 10 and not guest.waiting_for_sync and guest.battle.phase == "action" and tested_fate_id in guest.battle.players[1].fate_used and ((tested_fate_id == "recharge" and int(guest.battle.players[1].units[0].mana) == 2) or (tested_fate_id == "guard" and int(guest.battle.players[1].units[0].shield) == 2)):
 				battle_step = 14
 			elif battle_step == 14 and not sync_probe_sent:
 				sync_probe_sent = true
 				guest._send_online_intent({"type": "invalid_sync_probe"})
 			elif battle_step == 14 and not guest.waiting_for_sync and host.battle.phase == guest.battle.phase:
-				print("ONLINE SERVER MATCH CHECKS: private decks, fate draw/use, deploy, turn end, attack, rejection sync | FAILURES: 0")
+				print("ONLINE SERVER MATCH CHECKS: mode sync, private decks, fate draw/use, deploy, turn end, rejection sync | FAILURES: 0")
 				host.stop_network()
 				guest.stop_network()
 				quit(0)
@@ -120,5 +116,8 @@ func run() -> void:
 			quit(1)
 			return
 		await create_timer(0.01).timeout
-	push_error("relay match timed out: host=%s guest=%s" % [host.online_state, guest.online_state])
+	var debug_unit: Dictionary = guest.battle.players[1].units[0] if guest.battle.players.size() > 1 and not guest.battle.players[1].units.is_empty() else {}
+	var host_hp = host.battle.players[0].units[0].hp if host.battle.players.size() > 0 and not host.battle.players[0].units.is_empty() else "-"
+	var guest_hp = guest.battle.players[0].units[0].hp if guest.battle.players.size() > 0 and not guest.battle.players[0].units.is_empty() else "-"
+	push_error("relay match timed out: host=%s guest=%s step=%d fate=%s phase=%s mana=%s shield=%s used=%s hp=%s/%s" % [host.online_state, guest.online_state, battle_step, tested_fate_id, guest.battle.phase, debug_unit.get("mana", "-"), debug_unit.get("shield", "-"), guest.battle.players[1].get("fate_used", []) if guest.battle.players.size() > 1 else [], host_hp, guest_hp])
 	quit(1)

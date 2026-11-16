@@ -198,7 +198,7 @@ func _build_deck_library_page() -> void:
 
 func _build_fate_deck_library_slot(parent: Node, slot_index: int) -> void:
 	var panel := PanelContainer.new()
-	panel.name = "FateDeckLibrarySlot%d" % slot_index
+	panel.name = "BuiltinDefaultFateDeckSlot" if slot_index == 8 else "FateDeckLibrarySlot%d" % slot_index
 	panel.custom_minimum_size = Vector2(330, 190)
 	parent.add_child(panel)
 	var col := VBoxContainer.new()
@@ -209,6 +209,9 @@ func _build_fate_deck_library_slot(parent: Node, slot_index: int) -> void:
 	deck_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var remove := button_at(top, "삭제", func(): confirm_delete_fate_deck(slot_index))
 	remove.custom_minimum_size = Vector2(76, 42)
+	var badge := label_at(top, "기본 제공", 18, Color("fff0c2"))
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var status := label_at(col, "", BODY_FONT_SIZE, MUTED)
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var action := button_at(col, "편집하기", func(): _activate_fate_deck_library_slot(slot_index))
@@ -222,15 +225,17 @@ func _build_fate_deck_library_slot(parent: Node, slot_index: int) -> void:
 		"content": col,
 		"name": deck_name,
 		"remove": remove,
+		"badge": badge,
 		"status": status,
 		"action": action,
 		"plus": plus,
 	})
 
 func _activate_fate_deck_library_slot(slot_index: int) -> void:
-	if deck_library_mode != "manage":
-		if slot_index == 8 and slot_index >= saved_fate_decks.size(): choose_default_fate_deck()
-		elif slot_index >= 0 and slot_index < saved_fate_decks.size(): choose_saved_fate_deck(slot_index)
+	if slot_index == 8:
+		choose_default_fate_deck()
+	elif deck_library_mode != "manage" and slot_index >= 0 and slot_index < saved_fate_decks.size():
+		choose_saved_fate_deck(slot_index)
 	elif slot_index >= 0 and slot_index < saved_fate_decks.size():
 		open_fate_deck_editor(slot_index)
 
@@ -238,10 +243,16 @@ func _toggle_deck_library_section() -> void:
 	if deck_library_mode != "manage" or deck_library_transitioning:
 		return
 	var target := "cards" if deck_library_section == "fate" else "fate"
+	_transition_deck_library_section(target)
+
+func _transition_deck_library_section(target: String) -> void:
+	if target not in ["cards", "fate"] or target == deck_library_section or deck_library_transitioning:
+		return
 	var direction := -1 if target == "cards" else 1
 	deck_library_transitioning = true
-	deck_library_switch_button.disabled = true
-	deck_library_switch_button.hide()
+	if is_instance_valid(deck_library_switch_button):
+		deck_library_switch_button.disabled = true
+		deck_library_switch_button.hide()
 	var distance := maxf(deck_library_viewport.size.x, 1.0)
 	if is_instance_valid(deck_library_transition_tween):
 		deck_library_transition_tween.kill()
@@ -323,25 +334,29 @@ func refresh_deck_library_screen() -> bool:
 			var content: VBoxContainer = refs.content
 			var deck_name: Label = refs.name
 			var status: Label = refs.status
+			var badge: Label = refs.badge
 			var plus: Button = refs.plus
 			if not is_instance_valid(panel):
 				return false
-			var is_default := deck_library_mode != "manage" and slot_index == 8 and slot_index >= saved_fate_decks.size()
-			var has_deck := is_default or slot_index < saved_fate_decks.size()
-			content.visible = has_deck
-			plus.visible = not has_deck and deck_library_mode == "manage"
-			if not has_deck:
+			var is_default := slot_index == 8
+			var has_custom := slot_index < saved_fate_decks.size() and not is_default
+			var is_empty := not is_default and not has_custom
+			content.visible = not is_empty
+			plus.visible = is_empty
+			if is_empty:
 				panel.add_theme_stylebox_override("panel", box(Color("111c2e"), Color("293c55")))
-				plus.disabled = saved_fate_decks.size() >= MAX_FATE_DECKS
+				plus.disabled = deck_library_mode != "manage" or saved_fate_decks.size() >= MAX_FATE_DECKS
 				continue
 			var entry: Dictionary = _default_fate_deck_entry() if is_default else saved_fate_decks[slot_index]
 			deck_name.text = _deck_display_name(entry)
+			badge.visible = is_default
 			var complete := FateCatalog.is_valid_deck(entry.cards)
 			status.text = "%d / 12장 · %s" % [(entry.cards as Array).size(), "대전 가능" if complete else "제작 중"]
 			status.add_theme_color_override("font_color", GREEN if complete else MUTED)
 			refs.remove.visible = not is_default and deck_library_mode == "manage"
 			refs.action.text = "선택하고 계속" if deck_library_mode != "manage" else ("복사해서 편집" if is_default else "편집하기")
-			refs.action.disabled = not complete or (deck_library_mode == "online" and local_deck_submitted)
+			var custom_limit_reached := is_default and deck_library_mode == "manage" and saved_fate_decks.size() >= MAX_FATE_DECKS
+			refs.action.disabled = not complete or (deck_library_mode == "online" and local_deck_submitted) or custom_limit_reached
 			panel.add_theme_stylebox_override("panel", box(Color("17263d"), Color("3b5473")))
 		return true
 	if deck_library_slots.size() != 9:
@@ -525,8 +540,12 @@ func choose_default_deck() -> void:
 
 func _use_chosen_deck(chosen: Array) -> void:
 	decks[draft_player] = chosen.duplicate(true)
+	if not GameModesScript.uses_fates(current_game_mode):
+		fate_decks[draft_player] = []
+		_complete_battle_deck_selection()
+		return
 	deck_selection_stage = "fate"
-	render()
+	_transition_deck_library_section("fate")
 	_show_deck_editor_toast("유닛 덱 선택 완료 · 함께 사용할 운명 덱을 선택하세요.")
 
 func choose_saved_fate_deck(index: int) -> void:
@@ -538,16 +557,26 @@ func choose_saved_fate_deck(index: int) -> void:
 	_use_chosen_fate_deck(chosen)
 
 func choose_default_fate_deck() -> void:
-	_use_chosen_fate_deck(FateCatalog.default_deck())
+	var chosen := FateCatalog.default_deck()
+	if deck_library_mode == "manage":
+		if saved_fate_decks.size() >= MAX_FATE_DECKS: return
+		saved_fate_decks.append({"name": "기본 운명 덱 복사본", "cards": chosen.duplicate()})
+		_write_saved_decks(false)
+		open_fate_deck_editor(saved_fate_decks.size() - 1)
+		return
+	_use_chosen_fate_deck(chosen)
 
 func _use_chosen_fate_deck(chosen: Array) -> void:
 	fate_decks[draft_player] = chosen.duplicate()
+	_complete_battle_deck_selection()
+
+func _complete_battle_deck_selection() -> void:
 	if deck_library_mode == "online":
 		submit_selected_online_deck()
 	elif deck_library_mode == "local" and draft_player == 0:
 		draft_player = 1
 		deck_selection_stage = "cards"
-		render()
+		_transition_deck_library_section("cards")
 		_show_deck_editor_toast("P1 덱 조합 완료 · 이제 P2 덱을 선택하세요.")
 	else:
 		start_screen = false
@@ -558,8 +587,10 @@ func _use_chosen_fate_deck(chosen: Array) -> void:
 
 func submit_selected_online_deck() -> void:
 	local_deck_submitted = true
-	room_signaling.send_battle("submit_deck", {"deck": decks[local_player], "fate_deck": fate_decks[local_player]})
-	online_notice = "내 유닛 덱과 운명 덱을 서버에 제출했습니다. 상대를 기다리는 중…"
+	var payload := {"deck": decks[local_player]}
+	if GameModesScript.uses_fates(current_game_mode): payload.fate_deck = fate_decks[local_player]
+	room_signaling.send_battle("submit_deck", payload)
+	online_notice = ("내 유닛 덱과 운명 덱" if GameModesScript.uses_fates(current_game_mode) else "내 덱") + "을 서버에 제출했습니다. 상대를 기다리는 중…"
 	render()
 	_show_deck_editor_toast(online_notice)
 
@@ -567,7 +598,7 @@ func back_from_deck_library() -> void:
 	deck_editor_notice = ""
 	if deck_library_mode != "manage" and deck_selection_stage == "fate":
 		deck_selection_stage = "cards"
-		render()
+		_transition_deck_library_section("cards")
 		return
 	if deck_library_mode == "manage":
 		deck_library_section = "cards"
@@ -1374,7 +1405,7 @@ func begin_game() -> void:
 	ai = TCGFieldAI.new() if ai_difficulty == "hard" else TCGRandomAI.new()
 	if ai_enabled:
 		decks[1] = ai.random_deck()
-		fate_decks[1] = FateCatalog.default_deck()
+		fate_decks[1] = FateCatalog.default_deck() if GameModesScript.uses_fates(current_game_mode) else []
 	# Quick start also fills any incomplete pair back to its default.
 	for p in range(2):
 		for t in range(6):
@@ -1385,7 +1416,7 @@ func begin_game() -> void:
 	selection = {}
 	info = ""
 	battle.use_local_authority()
-	battle.start(decks, fate_decks)
+	battle.start(decks, fate_decks, current_game_mode)
 	covered = privacy and not ai_enabled
 	battle.presentation_enabled = effects_enabled
 	render()

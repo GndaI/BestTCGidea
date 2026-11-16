@@ -1,6 +1,7 @@
 extends SceneTree
 
 const FateCatalog = preload("res://src/cards/fate_catalog.gd")
+const GameModes = preload("res://src/battle/game_modes.gd")
 
 var checks := 0
 var failures := 0
@@ -45,8 +46,12 @@ func run() -> void:
 	check(fates.map(func(fate): return int(fate.cost)) == [3, 3, 3, 0, 0, 1, 4], "fate mana costs match the initial design")
 	check(FateCatalog.by_id("growth").effect == "grant_stats1" and FateCatalog.by_id("insight").effect == "draw_fate2" and FateCatalog.by_id("destruction").effect == "damage6", "fate effects keep their data identifiers")
 	check(FateCatalog.is_valid_deck(FateCatalog.default_deck()), "default fate deck has twelve legal cards with at most two copies")
+	check(FateCatalog.default_deck() == ["growth", "growth", "insight", "insight", "flame", "flame", "recharge", "recharge", "guard", "guard", "mending", "mending"], "default fate deck contains two copies each of fates one through six")
+	var standard_battle := TCGBattle.new()
+	standard_battle.start(decks(), [FateCatalog.default_deck(), FateCatalog.default_deck()], GameModes.DEFAULT_ID)
+	check(standard_battle.players[0].fate_hand.is_empty() and standard_battle.players[0].fate_deck.is_empty(), "standard mode does not load or draw fate cards")
 	var fate_battle := TCGBattle.new()
-	fate_battle.start(decks(), [FateCatalog.default_deck(), FateCatalog.default_deck()])
+	fate_battle.start(decks(), [FateCatalog.default_deck(), FateCatalog.default_deck()], GameModes.FATE_ID)
 	check(fate_battle.players[0].fate_hand.size() == 3 and fate_battle.players[0].fate_deck.size() == 9, "first player starts with two fates and draws one on the first turn")
 	check(fate_battle.players[1].fate_hand.size() == 2 and fate_battle.players[1].fate_deck.size() == 10, "second player also starts with two fates")
 	fate_battle.players[0].units.append(fate_battle.make_unit("healer"))

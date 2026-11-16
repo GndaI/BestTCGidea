@@ -352,6 +352,7 @@ func run() -> void:
 	check(is_instance_valid(feature_scene.root.find_child("GameModeSelectScreen", true, false)) and feature_scene.pending_battle_type == "ai", "AI battle opens the shared game-mode scene")
 	var offline_mode_select: OptionButton = feature_scene.root.find_child("OfflineGameModeSelect", true, false)
 	check(is_instance_valid(offline_mode_select) and offline_mode_select.get_item_text(0) == "기본 모드", "offline game-mode scene defaults to the standard mode")
+	check(is_instance_valid(offline_mode_select) and offline_mode_select.item_count == 2 and offline_mode_select.get_item_text(1) == "운명 모드", "offline game-mode scene lists fate mode separately")
 	feature_scene.confirm_game_mode_selection()
 	await process_frame
 	check(is_instance_valid(feature_scene.root.find_child("AIModeMenuScreen", true, false)) and feature_scene.current_game_mode == feature_scene.GameModesScript.DEFAULT_ID, "confirming an AI mode continues to AI difficulty selection")
@@ -381,6 +382,7 @@ func run() -> void:
 	var create_public_room_button: Button = feature_scene.root.find_child("CreatePublicRoomButton", true, false)
 	check(is_instance_valid(public_room_name_edit), "online screen provides a public room name field")
 	check(is_instance_valid(public_room_mode_select) and public_room_mode_select.get_item_text(0) == "기본 모드", "online room creation defaults to the standard game mode")
+	check(is_instance_valid(public_room_mode_select) and public_room_mode_select.item_count == 2 and public_room_mode_select.get_item_text(1) == "운명 모드", "online room creation lists fate mode separately")
 	check(is_instance_valid(public_room_name_edit) and is_instance_valid(public_room_mode_select) and is_instance_valid(create_public_room_button) and public_room_name_edit.get_index() < public_room_mode_select.get_index() and public_room_mode_select.get_index() < create_public_room_button.get_index(), "room mode selection sits below the room name and above the create button")
 	check(feature_scene.GameModesScript.normalize("unknown") == feature_scene.GameModesScript.DEFAULT_ID, "unknown room modes fall back to the standard mode")
 	var online_screen_texts: Array[String] = []
@@ -425,7 +427,9 @@ func run() -> void:
 	check(is_instance_valid(deck_switch) and deck_switch.text == "운명 덱  〉" and deck_switch.custom_minimum_size == Vector2(190, 140) and deck_switch.anchor_left == 1.0, "deck management offers a large fate-deck switch at the right-center edge")
 	deck_switch.pressed.emit()
 	await create_timer(0.6).timeout
-	check(feature_scene.deck_library_title.text == "운명 덱" and feature_scene.root.find_children("FateDeckLibrarySlot*", "PanelContainer", true, false).size() == 9, "fate decks reuse the same nine-slot layout after the page transition")
+	var builtin_fate_deck_slot: PanelContainer = feature_scene.root.find_child("BuiltinDefaultFateDeckSlot", true, false)
+	check(feature_scene.deck_library_title.text == "운명 덱" and feature_scene.root.find_children("FateDeckLibrarySlot*", "PanelContainer", true, false).size() == 8 and is_instance_valid(builtin_fate_deck_slot), "fate decks reuse the same eight custom plus one default slot layout")
+	check(builtin_fate_deck_slot.find_children("*", "Label", true, false).any(func(label): return (label as Label).text == "기본 운명 덱") and builtin_fate_deck_slot.find_children("*", "Label", true, false).any(func(label): return (label as Label).text == "기본 제공") and builtin_fate_deck_slot.find_children("*", "Button", true, false).any(func(button): return (button as Button).text == "복사해서 편집"), "default fate deck is always visible and copyable in deck management")
 	check(deck_switch.text == "〈  덱" and deck_switch.anchor_left == 0.0 and deck_switch.visible, "the fate-deck screen returns through the matching large switch at the left-center edge")
 	check(feature_scene.root.find_child("FateDeckLibrarySlot0", true, false).custom_minimum_size == Vector2(330, 190), "fate-deck slots keep the original deck-slot size")
 	deck_switch.pressed.emit()

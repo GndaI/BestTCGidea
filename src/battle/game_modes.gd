@@ -2,11 +2,17 @@ class_name TCGGameModes
 extends RefCounted
 
 const DEFAULT_ID := "standard"
+const FATE_ID := "fate"
 const MODES := [
 	{
 		"id": DEFAULT_ID,
 		"name": "기본 모드",
-		"description": "지금까지 만든 규칙으로 대전합니다.",
+		"description": "운명 카드 없이 기존 유닛 전투 규칙으로 대전합니다.",
+	},
+	{
+		"id": FATE_ID,
+		"name": "운명 모드",
+		"description": "유닛 덱과 운명 덱을 조합해 대전합니다.",
 	},
 ]
 
@@ -35,3 +41,6 @@ static func description(mode_id: String) -> String:
 		if str(mode.id) == normalized:
 			return str(mode.description)
 	return ""
+
+static func uses_fates(mode_id: String) -> bool:
+	return normalize(mode_id) == FATE_ID

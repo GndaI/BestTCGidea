@@ -883,6 +883,8 @@ func _pack_online_state() -> Dictionary:
 	return {"players": packed_players, "active": battle.active, "priority": battle.priority, "turn_index": battle.turn_index, "turn_phase": battle.turn_phase, "phase": battle.phase, "stack": packed_stack, "passes": battle.passes, "ending": battle.ending, "winner": battle.winner, "history": battle.history, "visual_events": battle.visual_events, "choice": battle.choice, "income_choices": battle.income_choices, "reaction_window": battle.reaction_window, "pending_roll": battle.pending_roll}
 
 func _restore_online_state(snapshot: Dictionary) -> void:
+	current_game_mode = GameModesScript.normalize(str(snapshot.get("mode", current_game_mode)))
+	battle.game_mode = current_game_mode
 	battle.players.clear()
 	for p in snapshot.players:
 		var units: Array = []

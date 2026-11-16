@@ -150,7 +150,7 @@ func _populate_battle_content() -> void:
 	bottom_bar.add_theme_constant_override("separation", 6)
 	root.add_child(bottom_bar)
 	render_hand(bottom_bar)
-	render_fate_hand(bottom_bar)
+	if GameModesScript.uses_fates(current_game_mode): render_fate_hand(bottom_bar)
 	var bottom_spacer := Control.new()
 	bottom_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bottom_bar.add_child(bottom_spacer)
