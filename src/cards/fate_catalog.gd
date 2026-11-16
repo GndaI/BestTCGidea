@@ -28,3 +28,20 @@ static func by_id(id_value: String) -> Dictionary:
 
 static func is_valid_id(id_value: String) -> bool:
 	return DATA.has(id_value)
+
+static func default_deck() -> Array:
+	var result: Array = ORDER.duplicate()
+	for index in range(5):
+		result.append(ORDER[index])
+	return result
+
+static func is_valid_deck(deck: Array, require_complete: bool = true) -> bool:
+	if (require_complete and deck.size() != 12) or (not require_complete and deck.size() > 12):
+		return false
+	var copies: Dictionary = {}
+	for id_value in deck:
+		var fate_id := str(id_value)
+		if not is_valid_id(fate_id): return false
+		copies[fate_id] = int(copies.get(fate_id, 0)) + 1
+		if int(copies[fate_id]) > 2: return false
+	return true

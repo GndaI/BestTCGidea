@@ -92,6 +92,24 @@ static func legal_actions(b: TCGBattle, owner: int) -> Array:
 					append_targets(result, b, base, effect, kind)
 	for i in range(b.players[owner].hand.size()):
 		result.append_array(spell_actions(b, owner, i))
+	if b.phase == "action" and owner == b.active and b.stack.is_empty():
+		for fate_index in range(b.players[owner].get("fate_hand", []).size()):
+			var fate := TCGFates.by_id(str(b.players[owner].fate_hand[fate_index]))
+			if fate.is_empty(): continue
+			for payer_index in range(b.players[owner].units.size()):
+				var payer := b.get_unit([owner, payer_index])
+				if payer.is_empty() or not payer.alive or int(payer.mana) < int(fate.cost): continue
+				var base := {"type":"fate", "owner":owner, "index":fate_index, "payer":[owner, payer_index]}
+				if fate.target == "payer":
+					var action := base.duplicate(true); action.target = [owner, payer_index]; result.append(action)
+				elif fate.target == "none":
+					var action := base.duplicate(true); action.target = []; result.append(action)
+				else:
+					for target_owner in range(2):
+						for target_index in range(b.players[target_owner].units.size()):
+							var target := [target_owner, target_index]
+							if b.valid_target(owner, [], target, str(fate.target), str(fate.effect)):
+								var action := base.duplicate(true); action.target = target; result.append(action)
 	return result
 
 static func perform(b: TCGBattle, action: Dictionary) -> bool:
@@ -99,6 +117,7 @@ static func perform(b: TCGBattle, action: Dictionary) -> bool:
 		"attack": return b.attack(action.owner, action.index, action.target)
 		"ability": return b.ability(action.owner, action.index, action.target, action.get("copied_id", ""), [], action.get("effect", ""))
 		"spell": return b.cast_spell(action.owner, action.index, action.target, action.get("copied_unit", []))
+		"fate": return b.activate_fate(action.owner, action.index, action.payer, action.target)
 	return false
 
 func step(b: TCGBattle, owner: int = 1) -> bool:

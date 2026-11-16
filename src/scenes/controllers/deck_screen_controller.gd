@@ -25,8 +25,10 @@ var fate_deck_catalog: GridContainer
 
 func reset_decks() -> void:
 	decks = [[], []]
+	fate_decks = [[], []]
 	for p in range(2):
 		decks[p] = _default_deck()
+		fate_decks[p] = FateCatalog.default_deck()
 
 func is_ai_turn() -> bool:
 	return not online_mode and ai_enabled and not drafting and battle.phase != "over" and battle.priority == 1
@@ -86,6 +88,9 @@ func _default_deck() -> Array:
 func _default_deck_entry() -> Dictionary:
 	return {"name": "기본 덱", "cards": _default_deck()}
 
+func _default_fate_deck_entry() -> Dictionary:
+	return {"name": "기본 운명 덱", "cards": FateCatalog.default_deck()}
+
 func _valid_saved_deck_structure(deck: Array) -> bool:
 	if deck.size() != 6: return false
 	for position in range(6):
@@ -135,8 +140,8 @@ func render_deck_library() -> void:
 
 func _render_deck_library_content() -> void:
 	if deck_library_mode != "manage":
-		deck_library_section = "cards"
-	var title := "덱" if deck_library_mode == "manage" else ("P%d 덱 선택" % [draft_player + 1] if deck_library_mode == "local" else "사용할 덱 선택")
+		deck_library_section = deck_selection_stage
+	var title := "운명 덱 선택" if deck_library_section == "fate" else ("덱" if deck_library_mode == "manage" else ("P%d 덱 선택" % [draft_player + 1] if deck_library_mode == "local" else "사용할 덱 선택"))
 	var header := screen_header_at(title, back_from_deck_library)
 	deck_library_title = header.get_node("ScreenTitle") as Label
 	deck_library_switch_button = null
@@ -223,7 +228,10 @@ func _build_fate_deck_library_slot(parent: Node, slot_index: int) -> void:
 	})
 
 func _activate_fate_deck_library_slot(slot_index: int) -> void:
-	if slot_index >= 0 and slot_index < saved_fate_decks.size():
+	if deck_library_mode != "manage":
+		if slot_index == 8 and slot_index >= saved_fate_decks.size(): choose_default_fate_deck()
+		elif slot_index >= 0 and slot_index < saved_fate_decks.size(): choose_saved_fate_deck(slot_index)
+	elif slot_index >= 0 and slot_index < saved_fate_decks.size():
 		open_fate_deck_editor(slot_index)
 
 func _toggle_deck_library_section() -> void:
@@ -318,17 +326,22 @@ func refresh_deck_library_screen() -> bool:
 			var plus: Button = refs.plus
 			if not is_instance_valid(panel):
 				return false
-			var has_deck := slot_index < saved_fate_decks.size()
+			var is_default := deck_library_mode != "manage" and slot_index == 8 and slot_index >= saved_fate_decks.size()
+			var has_deck := is_default or slot_index < saved_fate_decks.size()
 			content.visible = has_deck
-			plus.visible = not has_deck
+			plus.visible = not has_deck and deck_library_mode == "manage"
 			if not has_deck:
 				panel.add_theme_stylebox_override("panel", box(Color("111c2e"), Color("293c55")))
 				plus.disabled = saved_fate_decks.size() >= MAX_FATE_DECKS
 				continue
-			var entry: Dictionary = saved_fate_decks[slot_index]
+			var entry: Dictionary = _default_fate_deck_entry() if is_default else saved_fate_decks[slot_index]
 			deck_name.text = _deck_display_name(entry)
-			status.text = "%d / 12장" % (entry.cards as Array).size()
-			status.add_theme_color_override("font_color", GREEN if (entry.cards as Array).size() == 12 else MUTED)
+			var complete := FateCatalog.is_valid_deck(entry.cards)
+			status.text = "%d / 12장 · %s" % [(entry.cards as Array).size(), "대전 가능" if complete else "제작 중"]
+			status.add_theme_color_override("font_color", GREEN if complete else MUTED)
+			refs.remove.visible = not is_default and deck_library_mode == "manage"
+			refs.action.text = "선택하고 계속" if deck_library_mode != "manage" else ("복사해서 편집" if is_default else "편집하기")
+			refs.action.disabled = not complete or (deck_library_mode == "online" and local_deck_submitted)
 			panel.add_theme_stylebox_override("panel", box(Color("17263d"), Color("3b5473")))
 		return true
 	if deck_library_slots.size() != 9:
@@ -512,12 +525,30 @@ func choose_default_deck() -> void:
 
 func _use_chosen_deck(chosen: Array) -> void:
 	decks[draft_player] = chosen.duplicate(true)
+	deck_selection_stage = "fate"
+	render()
+	_show_deck_editor_toast("유닛 덱 선택 완료 · 함께 사용할 운명 덱을 선택하세요.")
+
+func choose_saved_fate_deck(index: int) -> void:
+	if index < 0 or index >= saved_fate_decks.size(): return
+	var chosen: Array = saved_fate_decks[index].cards.duplicate()
+	if not FateCatalog.is_valid_deck(chosen):
+		_show_deck_editor_toast("12장을 모두 채운 운명 덱만 대전에 사용할 수 있습니다.")
+		return
+	_use_chosen_fate_deck(chosen)
+
+func choose_default_fate_deck() -> void:
+	_use_chosen_fate_deck(FateCatalog.default_deck())
+
+func _use_chosen_fate_deck(chosen: Array) -> void:
+	fate_decks[draft_player] = chosen.duplicate()
 	if deck_library_mode == "online":
 		submit_selected_online_deck()
 	elif deck_library_mode == "local" and draft_player == 0:
 		draft_player = 1
+		deck_selection_stage = "cards"
 		render()
-		_show_deck_editor_toast("P1 덱 선택 완료 · 이제 P2 덱을 선택하세요.")
+		_show_deck_editor_toast("P1 덱 조합 완료 · 이제 P2 덱을 선택하세요.")
 	else:
 		start_screen = false
 		online_mode = false
@@ -527,21 +558,17 @@ func _use_chosen_deck(chosen: Array) -> void:
 
 func submit_selected_online_deck() -> void:
 	local_deck_submitted = true
-	if online_host:
-		if remote_deck_submitted:
-			start_online_match()
-		else:
-			online_notice = "내 덱을 제출했습니다. 상대 덱 제출을 기다리는 중…"
-			render()
-			_show_deck_editor_toast(online_notice)
-	else:
-		room_signaling.send_game("submit_deck", {"deck": decks[local_player]})
-		online_notice = "덱을 제출했습니다. 호스트가 대전을 시작할 때까지 기다려 주세요."
-		render()
-		_show_deck_editor_toast(online_notice)
+	room_signaling.send_battle("submit_deck", {"deck": decks[local_player], "fate_deck": fate_decks[local_player]})
+	online_notice = "내 유닛 덱과 운명 덱을 서버에 제출했습니다. 상대를 기다리는 중…"
+	render()
+	_show_deck_editor_toast(online_notice)
 
 func back_from_deck_library() -> void:
 	deck_editor_notice = ""
+	if deck_library_mode != "manage" and deck_selection_stage == "fate":
+		deck_selection_stage = "cards"
+		render()
+		return
 	if deck_library_mode == "manage":
 		deck_library_section = "cards"
 		back_to_main_menu()
@@ -1333,17 +1360,7 @@ func toggle_draft(tier: int, id: String) -> void:
 func confirm_draft() -> void:
 	info = ""
 	if online_mode:
-		local_deck_submitted = true
-		if online_host:
-			if remote_deck_submitted:
-				start_online_match()
-			else:
-				online_notice = "내 덱을 제출했습니다. 상대 덱 제출을 기다리는 중…"
-				render()
-		else:
-			room_signaling.send_game("submit_deck", {"deck": decks[local_player]})
-			online_notice = "덱을 제출했습니다. 호스트가 대전을 시작할 때까지 기다려 주세요."
-			render()
+		submit_selected_online_deck()
 		return
 	if draft_player == 0 and not ai_enabled:
 		draft_player = 1
@@ -1357,6 +1374,7 @@ func begin_game() -> void:
 	ai = TCGFieldAI.new() if ai_difficulty == "hard" else TCGRandomAI.new()
 	if ai_enabled:
 		decks[1] = ai.random_deck()
+		fate_decks[1] = FateCatalog.default_deck()
 	# Quick start also fills any incomplete pair back to its default.
 	for p in range(2):
 		for t in range(6):
@@ -1366,7 +1384,8 @@ func begin_game() -> void:
 	drafting = false
 	selection = {}
 	info = ""
-	battle.start(decks)
+	battle.use_local_authority()
+	battle.start(decks, fate_decks)
 	covered = privacy and not ai_enabled
 	battle.presentation_enabled = effects_enabled
 	render()

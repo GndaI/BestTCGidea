@@ -214,6 +214,7 @@ func _start_ai_draft() -> void:
 	ai_enabled = true
 	drafting = true
 	draft_player = 0
+	deck_selection_stage = "cards"
 	deck_library_mode = "ai"
 	start_page = "decks"
 	editing_deck_index = -1
@@ -226,6 +227,7 @@ func start_local_draft() -> void:
 	ai_enabled = false
 	drafting = true
 	draft_player = 0
+	deck_selection_stage = "cards"
 	reset_decks()
 	deck_library_mode = "local"
 	start_page = "decks"
@@ -451,6 +453,7 @@ func _on_room_peer_connected(peer_id: int) -> void:
 	ai_enabled = false
 	draft_player = local_player
 	reset_decks()
+	deck_selection_stage = "cards"
 	local_deck_submitted = false
 	remote_deck_submitted = false
 	local_lobby_ready = true
@@ -497,6 +500,56 @@ func _on_room_game_message(kind: String, payload: Variant) -> void:
 		"request_state":
 			_rpc_request_online_state()
 
+func _on_room_battle_message(kind: String, payload: Variant) -> void:
+	match kind:
+		"deck_accepted":
+			local_deck_submitted = true
+			online_notice = "서버가 내 덱을 확인했습니다. 상대 덱을 기다리는 중…"
+			render()
+		"decks_ready":
+			remote_deck_submitted = true
+			if online_host:
+				start_online_match()
+			else:
+				online_notice = "양쪽 덱 확인 완료 · 서버가 대전을 준비하는 중…"
+				render()
+		"state":
+			if payload is Dictionary:
+				battle.apply_server_snapshot(payload)
+				_restore_online_state(payload)
+				battle.use_remote_authority(local_player)
+				if is_instance_valid(sync_timer): sync_timer.stop()
+				sync_retry_count = 0
+				start_screen = false
+				drafting = false
+				ai_enabled = false
+				online_mode = true
+				online_state = "playing"
+				waiting_for_sync = false
+				selection.clear()
+				info = ""
+				online_notice = ""
+				render()
+		"error":
+			if payload is Dictionary:
+				info = "서버 전투 명령을 처리하지 못했습니다. (%s)" % str(payload.get("code", "unknown"))
+				var snapshot = payload.get("snapshot", {})
+				if snapshot is Dictionary and not snapshot.is_empty():
+					battle.apply_server_snapshot(snapshot)
+					_restore_online_state(snapshot)
+			waiting_for_sync = false
+			render()
+
+func _on_remote_battle_command_requested(_player: int, command: Dictionary) -> void:
+	if not online_mode or online_state != "playing" or room_signaling == null:
+		return
+	waiting_for_sync = true
+	sync_retry_count = 0
+	info = "전투 명령을 서버에 전달 중…"
+	room_signaling.send_battle("command", {"command": command})
+	sync_timer.start()
+	render()
+
 func start_join() -> void:
 	if address_edit != null and not address_edit.text.strip_edges().is_empty(): join_address = address_edit.text.strip_edges()
 	if not join_address.begins_with("ws://") and not join_address.begins_with("wss://"):
@@ -537,6 +590,7 @@ func stop_network() -> void:
 	remote_deck_submitted = false
 	waiting_for_sync = false
 	sync_retry_count = 0
+	battle.use_local_authority()
 	start_screen = true
 	drafting = true
 	selection.clear()
@@ -556,6 +610,7 @@ func _on_peer_connected(id: int) -> void:
 	ai_enabled = false
 	draft_player = local_player
 	reset_decks()
+	deck_selection_stage = "cards"
 	local_deck_submitted = false
 	remote_deck_submitted = false
 	rpc_id(id, "_rpc_enter_online_lobby")
@@ -639,6 +694,7 @@ func begin_online_draft() -> void:
 	drafting = true
 	draft_player = local_player
 	reset_decks()
+	deck_selection_stage = "cards"
 	local_deck_submitted = false
 	remote_deck_submitted = false
 	deck_library_mode = "online"
@@ -658,6 +714,7 @@ func _rpc_start_online_draft() -> void:
 	ai_enabled = false
 	draft_player = local_player
 	reset_decks()
+	deck_selection_stage = "cards"
 	local_deck_submitted = false
 	remote_deck_submitted = false
 	deck_library_mode = "online"
@@ -689,18 +746,17 @@ func _valid_online_deck(deck: Array) -> bool:
 
 func start_online_match() -> void:
 	if not online_host or not local_deck_submitted or not remote_deck_submitted: return
-	start_screen = false
-	drafting = false
 	ai_enabled = false
 	covered = false
-	online_state = "playing"
-	waiting_for_sync = false
+	online_state = "starting_battle"
+	waiting_for_sync = true
 	selection.clear()
-	info = ""
-	online_notice = ""
+	info = "서버가 대전을 시작하는 중…"
+	online_notice = info
 	battle.presentation_enabled = effects_enabled
-	battle.start(decks)
-	_broadcast_online_state()
+	battle.use_remote_authority(local_player)
+	room_signaling.send_battle("start", {"mode": current_game_mode})
+	sync_timer.start()
 	render()
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -717,6 +773,7 @@ func _rpc_receive_online_state(snapshot: Dictionary) -> void:
 		pending_online_snapshots.append(snapshot)
 		return
 	_restore_online_state(snapshot)
+	battle.use_remote_authority(local_player)
 	start_screen = false
 	drafting = false
 	ai_enabled = false
@@ -730,15 +787,7 @@ func _rpc_receive_online_state(snapshot: Dictionary) -> void:
 
 func _send_online_intent(intent: Dictionary) -> void:
 	if not online_mode or online_state != "playing" or waiting_for_sync: return
-	if online_host:
-		_apply_online_intent(local_player, intent)
-	else:
-		waiting_for_sync = true
-		sync_retry_count = 0
-		info = "행동을 호스트에게 전달 중…"
-		room_signaling.send_game("intent", intent)
-		sync_timer.start()
-		render()
+	battle.submit_command(local_player, intent)
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_online_state() -> void:
@@ -756,26 +805,26 @@ func _has_online_remote_peer() -> bool:
 	return multiplayer.get_unique_id() != 1 and 1 in peers
 
 func _request_online_resync() -> void:
-	if not online_mode or online_host: return
+	if not online_mode: return
 	if not _has_online_remote_peer():
 		_on_server_disconnected()
 		return
 	online_state = "playing"
 	waiting_for_sync = true
-	info = "호스트에게 최신 전투 상태를 다시 요청하는 중…"
-	room_signaling.send_game("request_state")
+	info = "서버에 최신 전투 상태를 다시 요청하는 중…"
+	room_signaling.send_battle("sync")
 	sync_timer.start()
 	render()
 
 func _on_online_sync_timeout() -> void:
-	if not waiting_for_sync or not online_mode or online_host: return
+	if not waiting_for_sync or not online_mode: return
 	if not _has_online_remote_peer():
 		_on_server_disconnected()
 		return
 	sync_retry_count += 1
 	if sync_retry_count <= ONLINE_SYNC_MAX_RETRIES:
 		info = "응답이 늦어 최신 전투 상태를 다시 요청합니다. (%d/%d)" % [sync_retry_count, ONLINE_SYNC_MAX_RETRIES]
-		room_signaling.send_game("request_state")
+		room_signaling.send_battle("sync")
 		sync_timer.start()
 		render()
 		return
@@ -791,35 +840,7 @@ func _return_to_online_menu() -> void:
 func _apply_online_intent(player: int, intent: Dictionary) -> void:
 	if not online_host or online_state != "playing" or player not in [0, 1]: return
 	var before := battle.priority
-	var accepted := false
-	match str(intent.get("type", "")):
-		"attack":
-			if int(intent.get("owner", -1)) == player:
-				accepted = battle.attack(player, int(intent.get("index", -1)), intent.get("target", []))
-		"ability":
-			if int(intent.get("owner", -1)) == player:
-				accepted = battle.ability(player, int(intent.get("index", -1)), intent.get("target", []), str(intent.get("copied_id", "")), intent.get("copied_unit", []), str(intent.get("effect", "")))
-		"spell":
-			if int(intent.get("owner", -1)) == player:
-				accepted = battle.cast_spell(player, int(intent.get("index", -1)), intent.get("target", []), intent.get("copied_unit", []))
-		"pass":
-			if battle.priority == player and battle.phase in ["action", "reaction"]:
-				battle.pass_priority()
-				accepted = true
-		"end_turn":
-			if battle.priority == player:
-				accepted = battle.request_end()
-		"growth":
-			if battle.active == player and battle.phase == "growth":
-				battle.grow_potato(bool(intent.get("grow", false)))
-				accepted = true
-		"deploy":
-			if battle.active == player and battle.phase == "deploy":
-				accepted = battle.deploy(int(intent.get("choice", -1)))
-		"roll_target":
-			if battle.priority == player: accepted = battle.choose_roll_target(intent.get("target", []))
-		"roll_spell":
-			if battle.priority == player: accepted = battle.choose_roll_spell(int(intent.get("index", -1)))
+	var accepted := battle.apply_local_command(player, intent)
 	waiting_for_sync = false
 	selection.clear()
 	info = "" if accepted else "행동을 수행할 수 없습니다. 최신 상태를 동기화합니다."
@@ -845,7 +866,9 @@ func _pack_online_state() -> Dictionary:
 		if owner == local_player:
 			deck.clear()
 			hand_ids.clear()
-		packed_players.append({"deck": deck, "units": packed_units, "hand": hand_ids, "hand_count": p.hand.size(), "used": p.used.map(func(card): return card.id), "revealed": p.revealed, "own_turn": p.own_turn, "special": p.special})
+		var fate_hand: Array = p.get("fate_hand", []).duplicate()
+		if owner == local_player: fate_hand.clear()
+		packed_players.append({"deck": deck, "fate_deck_count": p.get("fate_deck", []).size(), "fate_hand": fate_hand, "fate_hand_count": p.get("fate_hand", []).size(), "fate_used": p.get("fate_used", []).duplicate(), "units": packed_units, "hand": hand_ids, "hand_count": p.hand.size(), "used": p.used.map(func(card): return card.id), "revealed": p.revealed, "own_turn": p.own_turn, "special": p.special})
 	var packed_stack: Array = []
 	for action in battle.stack:
 		var effect_card_id := ""
@@ -856,8 +879,8 @@ func _pack_online_state() -> Dictionary:
 			effect_card_id = battle.get_unit(action.source).card.id
 		elif not action.spell.is_empty():
 			effect_card_id = action.spell.id
-		packed_stack.append({"owner": action.owner, "title": action.title, "effect": action.effect, "target": action.target, "amount": action.amount, "spell_id": action.spell.get("id", ""), "chain_card_id": action.get("chain_card", {}).get("id", ""), "source": action.source, "effect_card_id": effect_card_id})
-	return {"players": packed_players, "active": battle.active, "priority": battle.priority, "turn_index": battle.turn_index, "phase": battle.phase, "stack": packed_stack, "passes": battle.passes, "ending": battle.ending, "winner": battle.winner, "history": battle.history, "visual_events": battle.visual_events, "choice": battle.choice, "income_choices": battle.income_choices, "reaction_window": battle.reaction_window, "pending_roll": battle.pending_roll}
+		packed_stack.append({"owner": action.owner, "title": action.title, "effect": action.effect, "effect_type": action.get("effect_type", ""), "target": action.target, "amount": action.amount, "spell_id": action.spell.get("id", ""), "fate_id": action.get("fate_id", ""), "chain_card_id": action.get("chain_card", {}).get("id", ""), "source": action.source, "effect_card_id": effect_card_id})
+	return {"players": packed_players, "active": battle.active, "priority": battle.priority, "turn_index": battle.turn_index, "turn_phase": battle.turn_phase, "phase": battle.phase, "stack": packed_stack, "passes": battle.passes, "ending": battle.ending, "winner": battle.winner, "history": battle.history, "visual_events": battle.visual_events, "choice": battle.choice, "income_choices": battle.income_choices, "reaction_window": battle.reaction_window, "pending_roll": battle.pending_roll}
 
 func _restore_online_state(snapshot: Dictionary) -> void:
 	battle.players.clear()
@@ -871,16 +894,17 @@ func _restore_online_state(snapshot: Dictionary) -> void:
 			units.append(restored)
 		var hand: Array = p.hand.map(func(id): return TCGCards.by_id(id))
 		var used: Array = p.used.map(func(id): return TCGCards.by_id(id))
-		battle.players.append({"deck": p.deck, "units": units, "hand": hand, "hand_count": p.hand_count, "used": used, "revealed": p.revealed, "own_turn": p.own_turn, "special": p.special})
+		battle.players.append({"deck": p.deck, "fate_deck": [], "fate_deck_count": p.get("fate_deck_count", 0), "fate_hand": p.get("fate_hand", []).duplicate(), "fate_hand_count": p.get("fate_hand_count", 0), "fate_used": p.get("fate_used", []).duplicate(), "units": units, "hand": hand, "hand_count": p.hand_count, "used": used, "revealed": p.revealed, "own_turn": p.own_turn, "special": p.special})
 	battle.stack.clear()
 	for action in snapshot.stack:
 		var spell: Dictionary = TCGCards.by_id(action.spell_id) if not str(action.spell_id).is_empty() else {}
 		var chain_card: Dictionary = TCGCards.by_id(action.get("chain_card_id", "")) if not str(action.get("chain_card_id", "")).is_empty() else {}
 		var effect_card: Dictionary = TCGCards.by_id(action.effect_card_id) if not str(action.effect_card_id).is_empty() else {}
-		battle.stack.append({"owner": action.owner, "title": action.title, "effect": action.effect, "target": action.target, "amount": action.amount, "spell": spell, "chain_card": chain_card, "source": action.source, "effect_handler": effect_card.get("effect_handler", null)})
+		battle.stack.append({"owner": action.owner, "title": action.title, "effect": action.effect, "effect_type": action.get("effect_type", ""), "target": action.target, "amount": action.amount, "spell": spell, "fate_id": action.get("fate_id", ""), "chain_card": chain_card, "source": action.source, "effect_handler": effect_card.get("effect_handler", null)})
 	battle.active = snapshot.active
 	battle.priority = snapshot.priority
 	battle.turn_index = snapshot.turn_index
+	battle.turn_phase = str(snapshot.get("turn_phase", TCGBattle.ACTION))
 	battle.phase = snapshot.phase
 	battle.passes = snapshot.passes
 	battle.ending = snapshot.ending

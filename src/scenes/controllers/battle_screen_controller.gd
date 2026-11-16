@@ -150,6 +150,7 @@ func _populate_battle_content() -> void:
 	bottom_bar.add_theme_constant_override("separation", 6)
 	root.add_child(bottom_bar)
 	render_hand(bottom_bar)
+	render_fate_hand(bottom_bar)
 	var bottom_spacer := Control.new()
 	bottom_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bottom_bar.add_child(bottom_spacer)
@@ -367,6 +368,10 @@ func clear_chain_spells() -> void:
 func _chain_display_card(action: Dictionary) -> Dictionary:
 	var display_card: Dictionary = action.get("chain_card", {})
 	if display_card.is_empty(): display_card = action.get("spell", {})
+	if display_card.is_empty() and not str(action.get("fate_id", "")).is_empty():
+		var fate := FateCatalog.by_id(str(action.fate_id))
+		if not fate.is_empty():
+			display_card = {"id":"fate_" + str(fate.id), "name":fate.name, "tier":0, "power":0, "health":0, "rules":"", "spell_text":"유발 · 비용 %d\n%s" % [int(fate.cost), str(fate.text)]}
 	if display_card.is_empty():
 		var source: Array = action.get("source", [])
 		var source_unit := battle.get_unit(source)
@@ -383,7 +388,7 @@ func add_chain_card(parent: Node, spell: Dictionary, action: Dictionary, pending
 	var number_label := label_at(column, "CHAIN %d%s" % [chain_number, " · 선택 중" if pending else ""], 15, GOLD if int(action.owner) == 0 else BLUE)
 	number_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var view := TCGCardView.new()
-	var spell_face: bool = pending or not action.get("chain_card", {}).is_empty() or not action.get("spell", {}).is_empty()
+	var spell_face: bool = pending or not action.get("chain_card", {}).is_empty() or not action.get("spell", {}).is_empty() or not str(action.get("fate_id", "")).is_empty()
 	view.configure(spell, -1, -1, -1, spell_face)
 	view.custom_minimum_size = Vector2(76, 106)
 	view.size = Vector2(76, 106)
@@ -786,6 +791,36 @@ func render_hand(parent: Node = root) -> void:
 			)
 	else:
 		label_at(hand_column, "없음", 11, MUTED)
+
+func render_fate_hand(parent: Node = root) -> void:
+	var area := PanelContainer.new()
+	area.name = "FateHandArea"
+	area.custom_minimum_size = Vector2(360, HAND_AREA_HEIGHT)
+	area.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	area.add_theme_stylebox_override("panel", box(Color("17142b"), Color("a884d8")))
+	parent.add_child(area)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 3)
+	area.add_child(column)
+	var owner := local_player if online_mode else (0 if ai_enabled else battle.priority)
+	var player: Dictionary = battle.players[owner]
+	label_at(column, "운명 · 덱 %d장 · 사용 %d장" % [int(player.get("fate_deck_count", player.get("fate_deck", []).size())), player.get("fate_used", []).size()], 12, Color("d6b8ff"))
+	var hand: Array = player.get("fate_hand", [])
+	if hand.is_empty():
+		label_at(column, "없음", 11, MUTED)
+		return
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+	column.add_child(row)
+	for index in range(hand.size()):
+		var fate := FateCatalog.by_id(str(hand[index]))
+		if fate.is_empty(): continue
+		var can_pay := false
+		for unit in player.units:
+			if unit.alive and int(unit.mana) >= int(fate.cost): can_pay = true
+		var fate_button := button_at(row, "%s\n%d" % [fate.name, fate.cost], func(): select_fate(index), not can_pay or battle.phase != "action" or battle.active != owner or battle.priority != owner or not battle.stack.is_empty())
+		fate_button.custom_minimum_size = Vector2(66, 76)
+		fate_button.tooltip_text = fate.text
 
 func render_used_spell_badge(parent: Node) -> void:
 	var badge := PanelContainer.new()

@@ -96,14 +96,8 @@ func finish_drag(point: Vector2) -> void:
 		render()
 		return
 	if moved and not source.is_empty() and not target.is_empty():
-		if online_mode:
-			# A drag attack already has both endpoints. Send it directly instead of
-			# creating a partial target-selection Dictionary with no `mode` field.
-			selection.clear()
-			_send_online_intent({"type": "attack", "owner": source[0], "index": source[1], "target": target.duplicate()})
-			return
 		var before := battle.priority
-		if battle.attack(source[0], source[1], target):
+		if battle.submit_command(source[0], {"type":"attack","index":source[1],"target":target}):
 			after_action(before)
 			return
 	render()
@@ -273,9 +267,9 @@ func _process(delta: float) -> void:
 			arrows.append({"start": anchor_for(drag_source), "end": point, "color": Color("ff816d") if legal else GOLD, "title": drag_title if legal or not can_attack else "적 카드 위에 놓으세요 · 우클릭 취소"})
 		elif not resolving_event.is_empty():
 			arrows.append(arrow_for(resolving_event))
-		elif not selection.is_empty() and selection.get("mode", "") in ["target", "copy"]:
+		elif not selection.is_empty() and selection.get("mode", "") in ["target", "copy", "payer"]:
 			var replay_target: bool = selection.action == "ability" and not str(selection.get("copied_id", "")).is_empty()
-			var source: Array = [] if selection.action == "spell" or replay_target else [selection.owner, selection.index]
+			var source: Array = selection.get("payer", []) if selection.action == "fate" else ([] if selection.action == "spell" or replay_target else [selection.owner, selection.index])
 			var start := anchor_for(source, selection.owner)
 			if selection.action == "spell" and spell_views.has(selection.index):
 				start = spell_views[selection.index].get_global_rect().get_center()
@@ -284,6 +278,8 @@ func _process(delta: float) -> void:
 			var selection_title := "대상을 선택하세요 · 우클릭 취소"
 			if selection.action == "attack":
 				selection_title = "기본 공격 · 피해 %d · 우클릭 취소" % int(battle.get_unit([selection.owner, selection.index]).get("mana", 0))
+			elif selection.get("mode", "") == "payer":
+				selection_title = "운명 비용을 지불할 아군 유닛 선택 · 우클릭 취소"
 			arrows.append({"start": start, "end": get_global_mouse_position(), "color": GOLD, "title": selection_title})
 		elif not battle.stack.is_empty():
 			var previews := _chain_final_previews()

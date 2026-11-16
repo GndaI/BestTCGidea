@@ -42,14 +42,24 @@ func run() -> void:
 	]
 	scene.choose_saved_deck(0)
 	checks += 1
-	if scene.draft_player != 1 or not scene.start_screen or scene.decks[0] != p1_deck:
+	if scene.draft_player != 0 or scene.deck_selection_stage != "fate" or not scene.start_screen or scene.decks[0] != p1_deck:
 		failures += 1
-		push_error("FAIL: choosing P1 deck must advance to P2 deck selection")
+		push_error("FAIL: choosing P1 unit deck must advance to P1 fate deck selection")
+	scene.choose_default_fate_deck()
+	checks += 1
+	if scene.draft_player != 1 or scene.deck_selection_stage != "cards":
+		failures += 1
+		push_error("FAIL: completing P1 deck pair must advance to P2 unit deck selection")
 	scene.choose_saved_deck(1)
 	checks += 1
-	if scene.drafting or scene.ai_enabled or scene.decks[1] != p2_deck:
+	if scene.draft_player != 1 or scene.deck_selection_stage != "fate" or scene.decks[1] != p2_deck:
 		failures += 1
-		push_error("FAIL: choosing P2 deck must start a local battle with both selected decks")
+		push_error("FAIL: choosing P2 unit deck must advance to P2 fate deck selection")
+	scene.choose_default_fate_deck()
+	checks += 1
+	if scene.drafting or scene.ai_enabled or scene.decks[1] != p2_deck or scene.fate_decks[0].size() != 12 or scene.fate_decks[1].size() != 12:
+		failures += 1
+		push_error("FAIL: choosing P2 fate deck must start a local battle with both deck pairs")
 
 	scene.ai_timer.stop()
 	scene.auto_timer.stop()

@@ -30,13 +30,8 @@ func choose_ability_option(option: Dictionary) -> void:
 	render()
 
 func submit_selected_ability(target) -> void:
-	if online_mode:
-		var intent := {"type":"ability","owner":selection.owner,"index":selection.index,"target":target,"effect":selection.effect}
-		selection.clear()
-		_send_online_intent(intent)
-		return
 	var before := battle.priority
-	var accepted := battle.ability(selection.owner, selection.index, target, str(selection.get("copied_id", "")), selection.get("copied_unit", []), str(selection.get("effect", "")))
+	var accepted := battle.submit_command(selection.owner, {"type":"activate_ability","index":selection.index,"target":target,"copied_id":str(selection.get("copied_id", "")),"copied_unit":selection.get("copied_unit", []),"effect":str(selection.get("effect", ""))})
 	selection.clear()
 	info = "" if accepted else "지금은 수행할 수 없는 행동입니다. 대상과 마나를 확인하세요."
 	after_action(before)
@@ -56,18 +51,27 @@ func select_spell(index: int) -> void:
 	var c: Dictionary = battle.players[owner].hand[index]
 	var spell_kind := TCGCards.spell_target(c.spell)
 	if spell_kind == "none":
-		if online_mode:
-			_send_online_intent({"type": "spell", "owner": owner, "index": index, "target": []})
-		else:
-			var before := battle.priority
-			var accepted := battle.cast_spell(owner, index, [])
-			info = "" if accepted else "지금은 이 주문을 사용할 수 없습니다."
-			if accepted: after_action(before)
+		var before := battle.priority
+		var accepted := battle.submit_command(owner, {"type":"cast_spirit","index":index,"target":[]})
+		info = "" if accepted else "지금은 이 영혼을 사용할 수 없습니다."
+		if accepted: after_action(before)
 		return
 	selection = {"action": "spell", "owner": owner, "index": index, "mode": "target", "kind": spell_kind, "effect": c.spell}
 	if c.spell == "copy":
 		selection.mode = "copy"
 		selection.prompt = "주문 효과를 빌릴 아군 유닛을 선택하세요. 수습생과 조건부 주문은 제외됩니다."
+	render()
+
+func select_fate(index: int) -> void:
+	var owner := battle.active
+	if battle.phase != "action" or battle.priority != owner or not battle.stack.is_empty() or waiting_for_sync or is_ai_turn(): return
+	if online_mode and owner != local_player: return
+	var hand: Array = battle.players[owner].get("fate_hand", [])
+	if index < 0 or index >= hand.size(): return
+	var fate := FateCatalog.by_id(str(hand[index]))
+	if fate.is_empty(): return
+	selection = {"action":"fate", "owner":owner, "index":index, "mode":"payer", "kind":"ally", "effect":str(fate.effect), "fate":fate}
+	selection.prompt = "비용 %d을 전부 지불할 아군 유닛을 선택하세요." % int(fate.cost)
 	render()
 
 func select_replay(c: Dictionary) -> void:
@@ -86,18 +90,40 @@ func target_eligible(target: Array) -> bool:
 	if owner not in [0, 1]: return false
 	if mode == "copy":
 		return target[0] == owner and battle.copy_effect(target) != ""
+	if mode == "payer":
+		var payer := battle.get_unit(target)
+		return selection.action == "fate" and target[0] == owner and not payer.is_empty() and payer.alive and int(payer.mana) >= int(selection.fate.cost)
 	if mode != "target": return false
 	if target in selection.get("chosen_targets", []): return false
 	var action := str(selection.get("action", ""))
 	var index := int(selection.get("index", -1))
-	if action not in ["attack", "ability", "spell"]: return false
+	if action not in ["attack", "ability", "spell", "fate"]: return false
 	if action != "spell" and index < 0: return false
 	var is_replayed_spell: bool = action == "ability" and not str(selection.get("copied_id", "")).is_empty()
-	var source: Array = [] if action == "spell" or is_replayed_spell else [owner, index]
+	var source: Array = [] if action in ["spell", "fate"] or is_replayed_spell else [owner, index]
 	return battle.valid_target(owner, source, target, str(selection.get("kind", "")), str(selection.get("effect", "")))
 
 func choose_target(target: Array) -> void:
 	var mode := str(selection.get("mode", ""))
+	if mode == "payer":
+		if not target_eligible(target):
+			selection.clear()
+			render()
+			return
+		selection.payer = target.duplicate()
+		var fate: Dictionary = selection.fate
+		var target_kind := str(fate.target)
+		if target_kind == "payer":
+			_submit_selected_fate(target)
+			return
+		if target_kind == "none":
+			_submit_selected_fate([])
+			return
+		selection.mode = "target"
+		selection.kind = target_kind
+		selection.prompt = "운명의 대상을 선택하세요: " + str(fate.text)
+		render()
+		return
 	if mode == "copy":
 		selection.copied_unit = target
 		selection.effect = battle.copy_effect(target)
@@ -119,66 +145,51 @@ func choose_target(target: Array) -> void:
 			return
 		submit_selected_ability(selection.chosen_targets.duplicate(true))
 		return
-	if online_mode:
-		var intent := {"type": selection.action, "owner": selection.owner, "index": selection.index, "target": target, "copied_id": selection.get("copied_id", ""), "copied_unit": selection.get("copied_unit", []), "effect":selection.get("effect", "")}
-		selection.clear()
-		_send_online_intent(intent)
-		return
 	var before := battle.priority
 	var accepted := false
-	match selection.action:
-		"attack": accepted = battle.attack(selection.owner, selection.index, target)
-		"ability": accepted = battle.ability(selection.owner, selection.index, target, selection.get("copied_id", ""), [], selection.get("effect", ""))
-		"spell": accepted = battle.cast_spell(selection.owner, selection.index, target, selection.get("copied_unit", []))
+	var command_type: String = str({"attack":"attack", "ability":"activate_ability", "spell":"cast_spirit", "fate":"activate_fate"}.get(selection.action, ""))
+	if selection.action == "fate":
+		accepted = battle.submit_command(selection.owner, {"type":"activate_fate", "index":selection.index, "payer":selection.payer, "target":target})
+	else:
+		accepted = battle.submit_command(selection.owner, {"type":command_type,"index":selection.index,"target":target,"copied_id":selection.get("copied_id", ""),"copied_unit":selection.get("copied_unit", []),"effect":selection.get("effect", "")})
 	selection = {}
 	info = "" if accepted else "지금은 수행할 수 없는 행동입니다. 대상과 마나를 확인하세요."
 	after_action(before)
 
-func choose_gamble(target: Array) -> void:
-	if online_mode:
-		_send_online_intent({"type": "roll_target", "target": target})
-		return
+func _submit_selected_fate(target: Array) -> void:
 	var before := battle.priority
-	battle.choose_roll_target(target)
+	var accepted := battle.submit_command(selection.owner, {"type":"activate_fate", "index":selection.index, "payer":selection.payer, "target":target})
+	selection.clear()
+	info = "" if accepted else "운명을 사용할 수 없습니다. 지불 유닛과 대상을 확인하세요."
+	after_action(before)
+
+func choose_gamble(target: Array) -> void:
+	var before := battle.priority
+	battle.submit_command(battle.priority, {"type":"choose_roll_target","target":target})
 	after_action(before)
 
 func choose_gamble_spell(index: int) -> void:
-	if online_mode:
-		_send_online_intent({"type": "roll_spell", "index": index})
-		return
 	var before := battle.priority
-	battle.choose_roll_spell(index)
+	battle.submit_command(battle.priority, {"type":"choose_roll_spirit","index":index})
 	after_action(before)
 
 func pass_action() -> void:
-	if online_mode:
-		_send_online_intent({"type": "pass"})
-		return
 	var before := battle.priority
-	battle.pass_priority()
+	battle.submit_command(battle.priority, {"type":"pass"})
 	after_action(before)
 
 func end_action() -> void:
-	if online_mode:
-		_send_online_intent({"type": "end_turn"})
-		return
 	var before := battle.priority
-	battle.request_end()
+	battle.submit_command(battle.priority, {"type":"end_turn"})
 	after_action(before)
 
 func choose_growth(grow: bool) -> void:
-	if online_mode:
-		_send_online_intent({"type": "growth", "grow": grow})
-	else:
-		battle.grow_potato(grow)
-		render()
+	battle.submit_command(battle.active, {"type":"choose_turn_start","grow":grow})
+	render()
 
 func choose_deploy(choice: int) -> void:
-	if online_mode:
-		_send_online_intent({"type": "deploy", "choice": choice})
-	else:
-		battle.deploy(choice)
-		render()
+	battle.submit_command(battle.active, {"type":"deploy","choice":choice})
+	render()
 
 func after_action(before: int) -> void:
 	if not battle.stack.is_empty() and str(battle.stack.back().get("title", "")).ends_with("기본 공격"):

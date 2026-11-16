@@ -3,20 +3,20 @@ extends TCGCardEffect
 func limited_to_once_per_turn() -> bool:
 	return true
 
-func has_income_choice() -> bool:
+func has_turn_start_choice() -> bool:
 	return card_data().id in ["potato", "bean"]
 
 func production_bonus(unit: Dictionary) -> int:
 	return 0
 
-func resolve_income_choice(battle: TCGBattle, unit: Dictionary, grow: bool) -> void:
+func resolve_turn_start_choice(battle: TCGBattle, unit: Dictionary, grow: bool) -> void:
+	if not grow:
+		return
 	var amount: int = battle.production(unit)
-	if grow:
-		var gain: int = 1 if unit.card.id == "potato" else amount
-		unit.bonus += gain
-		battle.note("%s: 생산력 +%d" % [unit.card.name, gain])
-	else:
-		unit.mana += amount
+	var gain: int = 1 if unit.card.id == "potato" else amount
+	unit.bonus += gain
+	unit.skip_production = true
+	battle.note("%s: 이번 생산을 대신해 생산력 +%d" % [unit.card.name, gain])
 
 func modify_incoming_damage(amount: int) -> int:
 	if card_data().id == "rock": return mini(1, amount)

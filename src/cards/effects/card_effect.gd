@@ -4,7 +4,7 @@ class_name TCGCardEffect
 func card_data() -> Dictionary:
 	return {}
 
-func has_income_choice() -> bool:
+func has_turn_start_choice() -> bool:
 	return false
 
 func production_bonus(_unit: Dictionary) -> int:
@@ -13,7 +13,7 @@ func production_bonus(_unit: Dictionary) -> int:
 func limited_to_once_per_turn() -> bool:
 	return false
 
-func resolve_income_choice(_battle: TCGBattle, _unit: Dictionary, _grow: bool) -> void:
+func resolve_turn_start_choice(_battle: TCGBattle, _unit: Dictionary, _grow: bool) -> void:
 	pass
 
 func modify_incoming_damage(amount: int) -> int:

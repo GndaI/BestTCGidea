@@ -44,19 +44,45 @@ func run() -> void:
 	check(fates.size() == 7, "seven initial fate cards")
 	check(fates.map(func(fate): return int(fate.cost)) == [3, 3, 3, 0, 0, 1, 4], "fate mana costs match the initial design")
 	check(FateCatalog.by_id("growth").effect == "grant_stats1" and FateCatalog.by_id("insight").effect == "draw_fate2" and FateCatalog.by_id("destruction").effect == "damage6", "fate effects keep their data identifiers")
+	check(FateCatalog.is_valid_deck(FateCatalog.default_deck()), "default fate deck has twelve legal cards with at most two copies")
+	var fate_battle := TCGBattle.new()
+	fate_battle.start(decks(), [FateCatalog.default_deck(), FateCatalog.default_deck()])
+	check(fate_battle.players[0].fate_hand.size() == 3 and fate_battle.players[0].fate_deck.size() == 9, "first player starts with two fates and draws one on the first turn")
+	check(fate_battle.players[1].fate_hand.size() == 2 and fate_battle.players[1].fate_deck.size() == 10, "second player also starts with two fates")
+	fate_battle.players[0].units.append(fate_battle.make_unit("healer"))
+	fate_battle.players[0].units[0].mana = 3
+	fate_battle.players[0].fate_hand = ["growth"]
+	fate_battle.phase = "action"
+	fate_battle.turn_phase = TCGBattle.ACTION
+	fate_battle.priority = 0
+	check(fate_battle.activate_fate(0, 0, [0, 0], [0, 0]), "fate is declared as an active-player empty-chain action")
+	check(fate_battle.players[0].units[0].mana == 0 and fate_battle.players[0].fate_hand.is_empty(), "one allied unit pays the entire fate cost on declaration")
+	resolve(fate_battle)
+	check(fate_battle.players[0].units[0].bonus == 1 and fate_battle.players[0].units[0].hp == 4 and fate_battle.players[0].units[0].max_hp == 4, "growth fate resolves production and life grants")
+	check(fate_battle.players[0].fate_used == ["growth"], "resolved fate enters the used fate archive")
+	var routed_battle := TCGBattle.new()
+	var routed_commands: Array = []
+	routed_battle.remote_command_requested.connect(func(player: int, command: Dictionary): routed_commands.append({"player":player,"command":command}))
+	routed_battle.use_remote_authority(0)
+	check(routed_battle.submit_command(0, {"type":"end_turn"}), "remote battle accepts the local player's command")
+	check(routed_commands.size() == 1 and routed_commands[0].player == 0 and routed_commands[0].command.type == "end_turn", "battle facade forwards commands without local calculation")
+	check(not routed_battle.submit_command(1, {"type":"end_turn"}), "remote battle rejects commands for the other player")
+	routed_battle.apply_server_snapshot({"phase":"turn_start","turnIndex":0})
+	check(routed_battle.server_snapshot.phase == "turn_start", "battle facade stores the Render snapshot")
 	for tier in range(1, 7):
 		var expected_pool_size := 2 if tier == 6 else (4 if tier in [1, 3, 4, 5] else 3)
 		check(TCGCards.pool(tier).size() == expected_pool_size, "pool tier %d" % tier)
 	var b := TCGBattle.new()
 	print("RULEBOOK: catalog loaded")
 	b.start(decks())
+	check(b.turn_phase == TCGBattle.DEPLOYMENT, "a new turn reaches deployment after automatic production")
 	var order: Array = []
 	for i in range(20):
 		order.append(b.active)
 		while b.phase == "growth": b.grow_potato(false)
-		if b.phase == "deploy": b.deploy(0)
-		check(b.request_end(), "turn end %d" % i)
-		b.pass_priority()
+		if b.phase == "deploy": check(b.submit_command(b.active, {"type":"deploy","choice":0}), "deploy command %d" % i)
+		check(b.submit_command(b.active, {"type":"end_turn"}), "turn end command %d" % i)
+		check(b.submit_command(b.priority, {"type":"pass"}), "turn end approval %d" % i)
 	check(order == [0,1,1,0,0,1,1,0,0,1,1,0,1,0,1,0,1,0,1,0], "strict alternation after six")
 	check(b.players[0].hand.size() == 2, "student sends tier-two spell to used")
 	check(b.players[0].used.size() == 1, "used spell")
@@ -93,11 +119,12 @@ func run() -> void:
 	b = fixture(["potato","bean"], ["vanilla_flower"])
 	b.turn_index = 3
 	b.begin_turn()
+	check(b.turn_phase == TCGBattle.TURN_START, "growth decisions belong to turn start")
 	check(b.income_choices.size() == 2, "potato and bean both have growth decisions")
 	b.grow_potato(true)
 	check(b.phase == "growth" and b.get_unit([0,0]).bonus == 1, "potato grows before bean choice")
 	b.grow_potato(false)
-	check(b.phase != "growth" and b.get_unit([0,1]).mana == 2 and b.get_unit([0,1]).bonus == 0, "bean can choose normal mana production")
+	check(b.turn_phase == TCGBattle.DEPLOYMENT and b.phase != "growth" and b.get_unit([0,1]).mana == 2 and b.get_unit([0,1]).bonus == 0, "production runs after all turn-start choices")
 	b.turn_index = 4
 	b.begin_turn()
 	b.grow_potato(false)

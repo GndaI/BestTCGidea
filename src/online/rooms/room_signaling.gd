@@ -6,6 +6,7 @@ signal failed(message: String)
 signal peer_connected(peer_id: int)
 signal peer_disconnected(peer_id: int)
 signal game_message(kind: String, payload: Variant)
+signal battle_message(kind: String, payload: Variant)
 signal connection_lost(message: String)
 
 enum Message {
@@ -18,6 +19,7 @@ enum Message {
 	CANDIDATE,
 	SEAL,
 	RELAY,
+	BATTLE,
 }
 
 var socket := WebSocketPeer.new()
@@ -44,6 +46,11 @@ func send_game(kind: String, payload: Variant = {}) -> void:
 		return
 	var target_id := 2 if own_id == 1 else 1
 	_send(Message.RELAY, target_id, {"kind": kind, "payload": payload})
+
+func send_battle(kind: String, payload: Variant = {}) -> void:
+	if own_id not in [1, 2]:
+		return
+	_send(Message.BATTLE, 0, {"kind": kind, "payload": payload})
 
 func is_room_connected() -> bool:
 	return active and own_id in [1, 2] and socket.get_ready_state() == WebSocketPeer.STATE_OPEN
@@ -122,3 +129,6 @@ func _handle_message(raw: String) -> void:
 		Message.RELAY:
 			if data is Dictionary:
 				game_message.emit(str(data.get("kind", "")), data.get("payload", {}))
+		Message.BATTLE:
+			if data is Dictionary:
+				battle_message.emit(str(data.get("kind", "")), data.get("payload", {}))

@@ -80,6 +80,9 @@ func _action_effect(b: TCGBattle, action: Dictionary) -> String:
 		var card: Dictionary = b.players[action.owner].hand[action.index]
 		if card.spell == "copy": return b.copy_effect(action.get("copied_unit", []))
 		return card.spell
+	if action.type == "fate":
+		var fate := TCGFates.by_id(str(b.players[action.owner].get("fate_hand", [])[action.index]))
+		return str(fate.get("effect", ""))
 	return ""
 
 func _damage_amount(b: TCGBattle, action: Dictionary, effect: String) -> int:
@@ -88,6 +91,7 @@ func _damage_amount(b: TCGBattle, action: Dictionary, effect: String) -> int:
 	if effect == "retaliate": return 6
 	if effect == "full_hit": return 2
 	if effect.begins_with("hit"): return int(effect.substr(3))
+	if effect.begins_with("damage"): return int(effect.substr(6))
 	return 0
 
 func _effective_damage(b: TCGBattle, target: Array, amount: int) -> int:
@@ -133,6 +137,9 @@ func _action_resource_penalty(b: TCGBattle, action: Dictionary, target_hp: int, 
 	if action.type == "spell":
 		# A spell is a one-shot resource; prefer reusable mana when both secure the same removal.
 		penalty += 850.0
+	elif action.type == "fate":
+		var fate := TCGFates.by_id(str(b.players[action.owner].get("fate_hand", [])[action.index]))
+		penalty += 500.0 + float(fate.get("cost", 0)) * 55.0
 	elif action.type == "ability":
 		var source := b.get_unit([action.owner, action.index])
 		if not source.is_empty(): penalty += float(source.card.cost * 55)
@@ -241,6 +248,9 @@ func score_action(b: TCGBattle, action: Dictionary) -> float:
 	if effect in ["power2", "full_bonus"]:
 		if target[0] != action.owner: return -1000000.0
 		return 260.0 + _unit_threat(b, target) * 0.06
+	if effect == "grant_stats1":
+		return 520.0 if target[0] == action.owner else -1000000.0
+	if effect == "draw_fate2": return 420.0
 	return -50.0
 
 func _best_choice_target(b: TCGBattle, owner: int) -> Array:

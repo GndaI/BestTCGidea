@@ -76,6 +76,7 @@ class PatchItemMarker:
 var battle := TCGBattle.new()
 var root: VBoxContainer
 var decks: Array = [[], []]
+var fate_decks: Array = [[], []]
 var draft_player := 0
 var drafting := true
 var selection: Dictionary = {}
@@ -197,6 +198,7 @@ var saved_decks: Array = []
 var saved_fate_decks: Array = []
 var deck_name_text := ""
 var deck_library_mode := "manage"
+var deck_selection_stage := "cards"
 var editing_deck_index := -1
 var editing_fate_deck_index := -1
 var deck_search_text := ""
@@ -319,6 +321,7 @@ func _ready() -> void:
 	_load_saved_decks()
 	_load_online_server_address()
 	reset_decks()
+	battle.remote_command_requested.connect(_on_remote_battle_command_requested)
 	room_signaling = RoomSignalingScript.new()
 	room_signaling.identity_ready.connect(_on_room_identity_ready)
 	room_signaling.status_changed.connect(_on_room_status_changed)
@@ -326,6 +329,7 @@ func _ready() -> void:
 	room_signaling.peer_connected.connect(_on_room_peer_connected)
 	room_signaling.peer_disconnected.connect(_on_room_peer_disconnected)
 	room_signaling.game_message.connect(_on_room_game_message)
+	room_signaling.battle_message.connect(_on_room_battle_message)
 	room_signaling.connection_lost.connect(_on_room_connection_lost)
 	add_child(room_signaling)
 	account_auth = SupabaseAuthScript.new()
@@ -635,6 +639,12 @@ func _on_room_connection_lost(message: String) -> void:
 	pass
 
 func _on_room_game_message(kind: String, payload: Variant) -> void:
+	pass
+
+func _on_room_battle_message(kind: String, payload: Variant) -> void:
+	pass
+
+func _on_remote_battle_command_requested(player: int, command: Dictionary) -> void:
 	pass
 
 func start_join() -> void:
@@ -1036,6 +1046,9 @@ func render_controls() -> void:
 func render_hand(parent: Node = root) -> void:
 	pass
 
+func render_fate_hand(parent: Node = root) -> void:
+	pass
+
 func render_used_spell_badge(parent: Node) -> void:
 	pass
 
@@ -1055,6 +1068,9 @@ func submit_selected_ability(target) -> void:
 	pass
 
 func select_attack(owner: int, slot: int) -> void:
+	pass
+
+func select_fate(index: int) -> void:
 	pass
 
 func select_spell(index: int) -> void:

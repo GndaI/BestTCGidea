@@ -10,6 +10,7 @@ var draft_started := false
 var host_deck_sent := false
 var guest_deck_sent := false
 var sync_probe_sent := false
+var battle_step := 0
 
 func _initialize() -> void:
 	call_deferred("run")
@@ -51,11 +52,65 @@ func run() -> void:
 			guest.decks[guest.local_player] = guest._default_deck()
 			guest.submit_selected_online_deck()
 		if host.online_state == "playing" and guest.online_state == "playing":
-			if not sync_probe_sent:
+			if battle_step == 0 and host.battle.phase == "deploy" and guest.battle.phase == "deploy":
+				if not host.battle.players[1].deck.is_empty() or not guest.battle.players[0].deck.is_empty():
+					push_error("opponent deck was exposed")
+					quit(1)
+					return
+				if host.battle.players[0].fate_hand.size() != 3 or guest.battle.players[1].fate_hand.size() != 2 or not guest.battle.players[0].fate_hand.is_empty() or int(guest.battle.players[0].fate_hand_count) != 3 or int(host.battle.players[1].fate_hand_count) != 2:
+					push_error("fate opening hand privacy or first-turn draw was incorrect")
+					quit(1)
+					return
+				battle_step = 1
+				host.choose_deploy(0)
+			elif battle_step == 1 and not host.waiting_for_sync and host.battle.phase == "action" and guest.battle.phase == "action":
+				battle_step = 2
+				host.end_action()
+			elif battle_step == 2 and not host.waiting_for_sync and host.battle.ending and guest.battle.ending and guest.battle.priority == 1:
+				battle_step = 3
+				guest.pass_action()
+			elif battle_step == 3 and not guest.waiting_for_sync and host.battle.turn_index == 1 and guest.battle.phase == "deploy":
+				battle_step = 4
+				guest.choose_deploy(0)
+			elif battle_step == 4 and not guest.waiting_for_sync and guest.battle.phase == "action":
+				battle_step = 5
+				guest.end_action()
+			elif battle_step == 5 and not guest.waiting_for_sync and guest.battle.ending and host.battle.priority == 0:
+				battle_step = 6
+				host.pass_action()
+			elif battle_step == 6 and not host.waiting_for_sync and guest.battle.turn_index == 2 and guest.battle.phase == "deploy":
+				battle_step = 7
+				guest.choose_deploy(0)
+			elif battle_step == 7 and not guest.waiting_for_sync and guest.battle.phase == "action" and int(guest.battle.players[1].units[0].mana) > 0:
+				battle_step = 8
+				var recharge_index: int = guest.battle.players[1].fate_hand.find("recharge")
+				if recharge_index < 0:
+					push_error("expected deterministic recharge fate draw")
+					quit(1)
+					return
+				guest._send_online_intent({"type":"activate_fate","index":recharge_index,"payer":[1,0],"target":[1,0]})
+			elif battle_step == 8 and not guest.waiting_for_sync and guest.battle.stack.size() == 1 and host.battle.priority == 0:
+				battle_step = 9
+				host.pass_action()
+			elif battle_step == 9 and not host.waiting_for_sync and guest.battle.priority == 1:
+				battle_step = 10
+				guest.pass_action()
+			elif battle_step == 10 and not guest.waiting_for_sync and guest.battle.phase == "action" and int(guest.battle.players[1].units[0].mana) == 2 and "recharge" in guest.battle.players[1].fate_used:
+				battle_step = 11
+				guest._send_online_intent({"type":"attack","index":0,"target":[0,0]})
+			elif battle_step == 11 and not guest.waiting_for_sync and guest.battle.stack.size() == 1 and host.battle.priority == 0:
+				battle_step = 12
+				host.pass_action()
+			elif battle_step == 12 and not host.waiting_for_sync and guest.battle.priority == 1:
+				battle_step = 13
+				guest.pass_action()
+			elif battle_step == 13 and not guest.waiting_for_sync and int(host.battle.players[0].units[0].hp) == 2 and int(guest.battle.players[0].units[0].hp) == 2:
+				battle_step = 14
+			elif battle_step == 14 and not sync_probe_sent:
 				sync_probe_sent = true
 				guest._send_online_intent({"type": "invalid_sync_probe"})
-			elif not guest.waiting_for_sync and host.battle.phase == guest.battle.phase:
-				print("ONLINE RELAY MATCH CHECKS: lobby, draft, decks, battle sync | FAILURES: 0")
+			elif battle_step == 14 and not guest.waiting_for_sync and host.battle.phase == guest.battle.phase:
+				print("ONLINE SERVER MATCH CHECKS: private decks, fate draw/use, deploy, turn end, attack, rejection sync | FAILURES: 0")
 				host.stop_network()
 				guest.stop_network()
 				quit(0)
