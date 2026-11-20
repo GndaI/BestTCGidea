@@ -1,0 +1,86 @@
+{
+  "version": "0.1-draft",
+  "design_size": {
+    "width": 280,
+    "height": 280
+  },
+  "origin": "top_left",
+  "uniform_scale_only": true,
+  "outer_points": [
+    { "id": "O0", "x": 140, "y": 0 },
+    { "id": "O1", "x": 280, "y": 84 },
+    { "id": "O2", "x": 227, "y": 280 },
+    { "id": "O3", "x": 53, "y": 280 },
+    { "id": "O4", "x": 0, "y": 84 }
+  ],
+  "inner_points": [
+    { "id": "I0", "x": 140, "y": 47.5 },
+    { "id": "I1", "x": 231.4, "y": 116.9 },
+    { "id": "I2", "x": 194.4, "y": 241.9 },
+    { "id": "I3", "x": 85.6, "y": 241.9 },
+    { "id": "I4", "x": 48.6, "y": 116.9 }
+  ],
+  "corners": {
+    "sharp_indices": [0],
+    "outer_radius": 8,
+    "inner_radius": 7
+  },
+  "strokes": {
+    "outer": 3,
+    "inner": 3,
+    "separator": 3,
+    "current_value_edge": 2,
+    "tick": 3
+  },
+  "regions": {
+    "mana": ["O0", "O4", "O3", "I3", "I4", "I0"],
+    "health": ["O0", "O1", "O2", "I2", "I1", "I0"],
+    "production": ["O3", "O2", "I2", "I3"],
+    "portrait": ["I0", "I1", "I2", "I3", "I4"]
+  },
+  "numbers": {
+    "mana": {
+      "center": { "x": 55, "y": 220 },
+      "box": { "width": 48, "height": 36 }
+    },
+    "health": {
+      "center": { "x": 225, "y": 220 },
+      "box": { "width": 48, "height": 36 }
+    },
+    "production": {
+      "center": { "x": 140, "y": 261 },
+      "box": { "width": 44, "height": 32 }
+    },
+    "font_size": 18,
+    "font_weight": "bold",
+    "horizontal_alignment": "center",
+    "vertical_alignment": "center"
+  },
+  "gauges": {
+    "thickness_percent": 85,
+    "mana": {
+      "direction": "production_boundary_to_apex",
+      "maximum_source": "ultimate_cost",
+      "tick_source": "unique_positive_ability_costs",
+      "omit_tick_at_maximum": true
+    },
+    "health": {
+      "direction": "apex_to_production_boundary",
+      "tick_interval": 5,
+      "omit_tick_at_maximum": true
+    },
+    "tick_length_ratio": 0.3333333333,
+    "tick_origin": "outer_edge",
+    "tick_angle": "perpendicular_to_outer_edge"
+  },
+  "dynamic_fields": [
+    "portrait",
+    "production",
+    "health",
+    "max_health",
+    "mana",
+    "max_mana",
+    "ability_costs",
+    "highlight_state"
+  ]
+}

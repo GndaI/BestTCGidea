@@ -1,0 +1,572 @@
+<div id="card-layout-editor">
+  <style>
+    #card-layout-editor {
+      color-scheme: light dark;
+      --editor-bg: light-dark(#f6f8fc, #111827);
+      --editor-surface: light-dark(#ffffff, #182235);
+      --editor-ink: light-dark(#1f2937, #e8eef8);
+      --editor-muted: light-dark(#657187, #9eabc0);
+      --editor-grid: light-dark(#dce4ef, #2a3950);
+      --editor-border: light-dark(#cdd7e4, #394962);
+      --editor-blue: #3b70e5;
+      --editor-blue-soft: #c8dcff;
+      --editor-red: #e94d49;
+      --editor-red-soft: #ffd0cd;
+      --editor-yellow: #ffefa0;
+      --editor-purple: #8b5cf6;
+      --editor-handle: #2563eb;
+      --editor-line-handle: #111827;
+      color: var(--editor-ink);
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      width: 100%;
+    }
+
+    #card-layout-editor .editor-shell {
+      background: var(--editor-bg);
+      border: 1px solid var(--editor-border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    #card-layout-editor .editor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      background: var(--editor-surface);
+      border-bottom: 1px solid var(--editor-border);
+    }
+
+    #card-layout-editor .editor-title {
+      display: grid;
+      gap: 3px;
+    }
+
+    #card-layout-editor .editor-title strong {
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    #card-layout-editor .editor-title span,
+    #card-layout-editor .editor-status {
+      color: var(--editor-muted);
+      font-size: 12px;
+    }
+
+    #card-layout-editor .editor-stage {
+      padding: 8px;
+      background: var(--editor-bg);
+    }
+
+    #card-layout-editor svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: var(--editor-surface);
+      border-radius: 12px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #card-layout-editor .grid-line {
+      stroke: var(--editor-grid);
+      stroke-width: 0.7;
+      pointer-events: none;
+    }
+
+    #card-layout-editor .card-outline,
+    #card-layout-editor .inner-outline,
+    #card-layout-editor .separator {
+      fill: none;
+      stroke: var(--editor-ink);
+      stroke-linecap: round;
+      stroke-linejoin: miter;
+      pointer-events: none;
+    }
+
+    #card-layout-editor .card-outline { stroke-width: 3; }
+    #card-layout-editor .inner-outline,
+    #card-layout-editor .separator { stroke-width: 3; }
+    #card-layout-editor .left-gauge { fill: var(--editor-blue-soft); }
+    #card-layout-editor .right-gauge { fill: var(--editor-red-soft); }
+    #card-layout-editor .production-gauge { fill: var(--editor-yellow); }
+    #card-layout-editor .mana-current { fill: var(--editor-blue); }
+    #card-layout-editor .health-current { fill: var(--editor-red); }
+    #card-layout-editor .art-fill { fill: var(--editor-surface); }
+
+    #card-layout-editor .value-edge {
+      stroke: color-mix(in srgb, var(--editor-ink) 58%, transparent);
+      stroke-width: 2;
+      stroke-linecap: round;
+    }
+
+    #card-layout-editor .tick-line {
+      stroke: var(--editor-ink);
+      stroke-width: 3;
+      stroke-linecap: round;
+    }
+
+    #card-layout-editor .line-hit {
+      stroke: transparent;
+      stroke-width: 14;
+      pointer-events: stroke;
+    }
+
+    #card-layout-editor .vertex-handle {
+      stroke: var(--editor-surface);
+      stroke-width: 1.5;
+    }
+
+    #card-layout-editor .outer-handle { fill: var(--editor-handle); }
+    #card-layout-editor .inner-handle { fill: var(--editor-purple); }
+    #card-layout-editor .line-handle { fill: var(--editor-line-handle); }
+    #card-layout-editor .handle-label {
+      fill: var(--editor-muted);
+      font-size: 9px;
+      font-weight: 500;
+      pointer-events: none;
+    }
+
+    #card-layout-editor .stat-number {
+      fill: var(--editor-ink);
+      stroke: var(--editor-surface);
+      stroke-width: 2.5px;
+      paint-order: stroke fill;
+      font-size: 25px;
+      font-weight: 500;
+      text-anchor: middle;
+      dominant-baseline: central;
+    }
+
+    #card-layout-editor .number-hit {
+      fill: transparent;
+      stroke: color-mix(in srgb, var(--editor-yellow) 70%, var(--editor-ink));
+      stroke-width: 1;
+      stroke-dasharray: 3 3;
+    }
+
+    #card-layout-editor .art-label {
+      fill: var(--editor-muted);
+      font-size: 15px;
+      font-weight: 500;
+      text-anchor: middle;
+      pointer-events: none;
+    }
+
+    #card-layout-editor .coord-axis {
+      fill: var(--editor-muted);
+      font-size: 10px;
+      pointer-events: none;
+    }
+
+    #card-layout-editor .selection-readout {
+      fill: var(--editor-ink);
+      font-size: 13px;
+      font-weight: 500;
+      pointer-events: none;
+    }
+
+    #card-layout-editor .selection-help {
+      fill: var(--editor-muted);
+      font-size: 11px;
+      pointer-events: none;
+    }
+
+    #card-layout-editor [data-drag] {
+      outline: none;
+    }
+
+    #card-layout-editor [data-drag]:focus-visible .vertex-handle,
+    #card-layout-editor [data-drag]:focus-visible .number-hit,
+    #card-layout-editor [data-drag]:focus-visible .line-handle {
+      stroke: #f59e0b;
+      stroke-width: 2.5;
+    }
+
+    #card-layout-editor .editor-footer {
+      padding: 9px 16px 12px;
+      background: var(--editor-surface);
+      border-top: 1px solid var(--editor-border);
+    }
+
+    @media (max-width: 560px) {
+      #card-layout-editor .editor-header { align-items: flex-start; }
+      #card-layout-editor .editor-title span { max-width: 220px; }
+    }
+  </style>
+
+  <div class="editor-shell">
+    <div class="editor-header">
+      <div class="editor-title">
+        <strong>카드 배치 편집판</strong>
+        <span>숫자, 꼭짓점, 눈금·경계선을 직접 드래그하세요.</span>
+      </div>
+      <button id="card-editor-reset" class="btn" type="button">초기화</button>
+    </div>
+
+    <div class="editor-stage">
+      <svg id="card-editor-svg" viewBox="0 0 900 620" role="img" aria-label="드래그로 수정하는 카드 배치 설계판">
+        <defs>
+          <clipPath id="left-gauge-clip"><path id="left-gauge-clip-path"></path></clipPath>
+          <clipPath id="right-gauge-clip"><path id="right-gauge-clip-path"></path></clipPath>
+        </defs>
+
+        <g id="card-coordinate-grid"></g>
+        <g id="card-shape" transform="translate(105 45) scale(1.8)">
+          <path id="left-gauge" class="left-gauge"></path>
+          <path id="right-gauge" class="right-gauge"></path>
+          <path id="production-gauge" class="production-gauge"></path>
+
+          <g clip-path="url(#left-gauge-clip)">
+            <rect class="mana-current" x="-20" y="177" width="175" height="130"></rect>
+          </g>
+          <g clip-path="url(#right-gauge-clip)">
+            <path class="health-current" d="M251 64 L320 64 L320 320 L100 320 L100 190 L206 98 Z"></path>
+          </g>
+
+          <path id="art-fill" class="art-fill"></path>
+          <text class="art-label" x="140" y="145">그림 영역</text>
+
+          <g id="value-lines"></g>
+          <g id="tick-lines"></g>
+          <g id="separators"></g>
+
+          <path id="outer-outline" class="card-outline"></path>
+          <path id="inner-outline" class="inner-outline"></path>
+
+          <g id="number-handles"></g>
+          <g id="line-handles"></g>
+          <g id="vertex-handles"></g>
+        </g>
+
+        <g aria-live="polite">
+          <text id="selection-readout" class="selection-readout" x="665" y="120">선택 없음</text>
+          <text class="selection-help" x="665" y="146">원 = 꼭짓점</text>
+          <text class="selection-help" x="665" y="166">숫자 = 수치 위치</text>
+          <text class="selection-help" x="665" y="186">선·끝점 = 선 위치와 각도</text>
+          <text class="selection-help" x="665" y="222">카드 좌표: 0–280 px</text>
+          <text id="selection-coords" class="selection-readout" x="665" y="252">x —  y —</text>
+        </g>
+      </svg>
+    </div>
+    <div class="editor-footer">
+      <div id="card-editor-status" class="editor-status">변경 내용은 이 편집판 안에 유지됩니다.</div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const root = document.getElementById('card-layout-editor');
+      const svg = document.getElementById('card-editor-svg');
+      const resetButton = document.getElementById('card-editor-reset');
+      const ORIGIN = { x: 105, y: 45 };
+      const SCALE = 1.8;
+
+      const defaults = {
+        outer: [
+          { x: 140, y: 0 }, { x: 280, y: 84 }, { x: 227, y: 280 },
+          { x: 53, y: 280 }, { x: 0, y: 84 }
+        ],
+        inner: [
+          { x: 140, y: 47.5 }, { x: 231.4, y: 116.9 }, { x: 194.4, y: 241.9 },
+          { x: 85.6, y: 241.9 }, { x: 48.6, y: 116.9 }
+        ],
+        numbers: {
+          mana: { x: 55, y: 220, value: '2', label: '마나 숫자' },
+          health: { x: 225, y: 220, value: '7', label: '체력 숫자' },
+          production: { x: 140, y: 261, value: '3', label: '생산력 숫자' }
+        },
+        lines: [
+          { id: 'mana-edge', label: '마나 현재값 경계선', type: 'value', clip: 'left', a: { x: -20, y: 177 }, b: { x: 150, y: 177 } },
+          { id: 'health-edge', label: '체력 현재값 경계선', type: 'value', clip: 'right', a: { x: 297, y: 30 }, b: { x: 162, y: 131 } },
+          { id: 'mana-tick-1', label: '마나 눈금 1', type: 'tick', a: { x: 63, y: 46 }, b: { x: 71.4, y: 59.8 } },
+          { id: 'mana-tick-2', label: '마나 눈금 2', type: 'tick', a: { x: 1, y: 145 }, b: { x: 16.8, y: 145 } },
+          { id: 'mana-tick-3', label: '마나 눈금 3', type: 'tick', a: { x: 36, y: 220 }, b: { x: 50.6, y: 216.4 } },
+          { id: 'health-tick-1', label: '체력 눈금 5', type: 'tick', a: { x: 217, y: 46 }, b: { x: 208.6, y: 59.8 } },
+          { id: 'health-tick-2', label: '체력 눈금 10', type: 'tick', a: { x: 244, y: 200 }, b: { x: 229.4, y: 196.4 } }
+        ]
+      };
+
+      const clone = value => JSON.parse(JSON.stringify(value));
+      const stored = window.openai && window.openai.widgetState && window.openai.widgetState.modelContent
+        ? window.openai.widgetState.modelContent.cardLayout
+        : null;
+      let state = stored && Array.isArray(stored.outer) && Array.isArray(stored.inner) ? clone(stored) : clone(defaults);
+      let drag = null;
+      let selection = null;
+
+      const els = {
+        outerOutline: root.querySelector('#outer-outline'),
+        innerOutline: root.querySelector('#inner-outline'),
+        leftGauge: root.querySelector('#left-gauge'),
+        rightGauge: root.querySelector('#right-gauge'),
+        productionGauge: root.querySelector('#production-gauge'),
+        artFill: root.querySelector('#art-fill'),
+        leftClip: root.querySelector('#left-gauge-clip-path'),
+        rightClip: root.querySelector('#right-gauge-clip-path'),
+        separators: root.querySelector('#separators'),
+        numberHandles: root.querySelector('#number-handles'),
+        lineHandles: root.querySelector('#line-handles'),
+        vertexHandles: root.querySelector('#vertex-handles'),
+        valueLines: root.querySelector('#value-lines'),
+        tickLines: root.querySelector('#tick-lines'),
+        readout: root.querySelector('#selection-readout'),
+        coords: root.querySelector('#selection-coords'),
+        status: root.querySelector('#card-editor-status'),
+        grid: root.querySelector('#card-coordinate-grid')
+      };
+
+      function roundedPath(points, radius = 8, sharpIndex = 0) {
+        const incoming = [];
+        const outgoing = [];
+        for (let i = 0; i < points.length; i++) {
+          const prev = points[(i - 1 + points.length) % points.length];
+          const cur = points[i];
+          const next = points[(i + 1) % points.length];
+          if (i === sharpIndex) {
+            incoming.push({ ...cur });
+            outgoing.push({ ...cur });
+            continue;
+          }
+          const lp = Math.hypot(prev.x - cur.x, prev.y - cur.y) || 1;
+          const ln = Math.hypot(next.x - cur.x, next.y - cur.y) || 1;
+          const rp = Math.min(radius, lp / 4);
+          const rn = Math.min(radius, ln / 4);
+          incoming.push({ x: cur.x + (prev.x - cur.x) * rp / lp, y: cur.y + (prev.y - cur.y) * rp / lp });
+          outgoing.push({ x: cur.x + (next.x - cur.x) * rn / ln, y: cur.y + (next.y - cur.y) * rn / ln });
+        }
+        let d = `M ${outgoing[0].x} ${outgoing[0].y}`;
+        for (let i = 1; i < points.length; i++) {
+          d += ` L ${incoming[i].x} ${incoming[i].y} Q ${points[i].x} ${points[i].y} ${outgoing[i].x} ${outgoing[i].y}`;
+        }
+        d += ` L ${incoming[0].x} ${incoming[0].y} L ${points[0].x} ${points[0].y} Z`;
+        return d;
+      }
+
+      function polygonPath(points) {
+        return points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ') + ' Z';
+      }
+
+      function gaugePaths() {
+        const O = state.outer;
+        const I = state.inner;
+        return {
+          left: polygonPath([O[0], O[4], O[3], I[3], I[4], I[0]]),
+          right: polygonPath([O[0], O[1], O[2], I[2], I[1], I[0]]),
+          production: polygonPath([O[3], O[2], I[2], I[3]])
+        };
+      }
+
+      function lineMarkup(line, index) {
+        const className = line.type === 'tick' ? 'tick-line' : 'value-edge';
+        const clip = line.clip === 'left' ? ' clip-path="url(#left-gauge-clip)"' : line.clip === 'right' ? ' clip-path="url(#right-gauge-clip)"' : '';
+        return `<g${clip}>
+          <line class="${className}" x1="${line.a.x}" y1="${line.a.y}" x2="${line.b.x}" y2="${line.b.y}"></line>
+          <line class="line-hit cursor-interaction" data-drag="line" data-line="${index}" tabindex="0" role="button" aria-label="${line.label} 전체 이동" x1="${line.a.x}" y1="${line.a.y}" x2="${line.b.x}" y2="${line.b.y}"></line>
+        </g>`;
+      }
+
+      function renderGrid() {
+        let html = '';
+        const left = ORIGIN.x;
+        const top = ORIGIN.y;
+        for (let v = 0; v <= 280; v += 20) {
+          const x = left + v * SCALE;
+          const y = top + v * SCALE;
+          html += `<line class="grid-line" x1="${x}" y1="${top}" x2="${x}" y2="${top + 280 * SCALE}"></line>`;
+          html += `<line class="grid-line" x1="${left}" y1="${y}" x2="${left + 280 * SCALE}" y2="${y}"></line>`;
+        }
+        html += `<text class="coord-axis" x="${left}" y="${top - 12}">0</text>`;
+        html += `<text class="coord-axis" x="${left + 280 * SCALE - 22}" y="${top - 12}">280</text>`;
+        html += `<text class="coord-axis" x="${left - 34}" y="${top + 280 * SCALE}">280</text>`;
+        els.grid.innerHTML = html;
+      }
+
+      function render() {
+        const paths = gaugePaths();
+        const outerD = roundedPath(state.outer, 8, 0);
+        const innerD = roundedPath(state.inner, 7, 0);
+
+        els.outerOutline.setAttribute('d', outerD);
+        els.innerOutline.setAttribute('d', innerD);
+        els.artFill.setAttribute('d', innerD);
+        els.leftGauge.setAttribute('d', paths.left);
+        els.rightGauge.setAttribute('d', paths.right);
+        els.productionGauge.setAttribute('d', paths.production);
+        els.leftClip.setAttribute('d', paths.left);
+        els.rightClip.setAttribute('d', paths.right);
+
+        const O = state.outer;
+        const I = state.inner;
+        els.separators.innerHTML = `
+          <line class="separator" x1="${O[0].x}" y1="${O[0].y}" x2="${I[0].x}" y2="${I[0].y}"></line>
+          <line class="separator" x1="${O[3].x}" y1="${O[3].y}" x2="${I[3].x}" y2="${I[3].y}"></line>
+          <line class="separator" x1="${O[2].x}" y1="${O[2].y}" x2="${I[2].x}" y2="${I[2].y}"></line>`;
+
+        els.valueLines.innerHTML = state.lines.map((line, i) => line.type === 'value' ? lineMarkup(line, i) : '').join('');
+        els.tickLines.innerHTML = state.lines.map((line, i) => line.type === 'tick' ? lineMarkup(line, i) : '').join('');
+
+        els.lineHandles.innerHTML = state.lines.map((line, i) => `
+          <g data-drag="line-end" data-line="${i}" data-end="a" tabindex="0" role="button" aria-label="${line.label} 시작점" class="cursor-interaction">
+            <circle class="vertex-handle line-handle" cx="${line.a.x}" cy="${line.a.y}" r="3.8"></circle>
+          </g>
+          <g data-drag="line-end" data-line="${i}" data-end="b" tabindex="0" role="button" aria-label="${line.label} 끝점" class="cursor-interaction">
+            <circle class="vertex-handle line-handle" cx="${line.b.x}" cy="${line.b.y}" r="3.8"></circle>
+          </g>`).join('');
+
+        els.vertexHandles.innerHTML = state.outer.map((p, i) => `
+          <g data-drag="outer" data-index="${i}" tabindex="0" role="button" aria-label="외곽 꼭짓점 O${i}" class="cursor-interaction">
+            <circle class="vertex-handle outer-handle" cx="${p.x}" cy="${p.y}" r="5"></circle>
+            <text class="handle-label" x="${p.x + 7}" y="${p.y - 7}">O${i}</text>
+          </g>`).join('') + state.inner.map((p, i) => `
+          <g data-drag="inner" data-index="${i}" tabindex="0" role="button" aria-label="내부 꼭짓점 I${i}" class="cursor-interaction">
+            <circle class="vertex-handle inner-handle" cx="${p.x}" cy="${p.y}" r="5"></circle>
+            <text class="handle-label" x="${p.x + 7}" y="${p.y - 7}">I${i}</text>
+          </g>`).join('');
+
+        els.numberHandles.innerHTML = Object.entries(state.numbers).map(([key, item]) => `
+          <g data-drag="number" data-key="${key}" tabindex="0" role="button" aria-label="${item.label}" class="cursor-interaction">
+            <circle class="number-hit" cx="${item.x}" cy="${item.y}" r="18"></circle>
+            <text class="stat-number" x="${item.x}" y="${item.y}">${item.value}</text>
+          </g>`).join('');
+
+        updateReadout();
+      }
+
+      function svgPoint(event) {
+        const pt = svg.createSVGPoint();
+        pt.x = event.clientX;
+        pt.y = event.clientY;
+        const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+        return { x: (local.x - ORIGIN.x) / SCALE, y: (local.y - ORIGIN.y) / SCALE };
+      }
+
+      function clampPoint(p) {
+        return { x: Math.max(-20, Math.min(300, p.x)), y: Math.max(-20, Math.min(300, p.y)) };
+      }
+
+      function selectedLabel() {
+        if (!selection) return { label: '선택 없음', coords: 'x —  y —' };
+        if (selection.kind === 'outer') {
+          const p = state.outer[selection.index];
+          return { label: `외곽 꼭짓점 O${selection.index}`, coords: `x ${p.x.toFixed(1)}   y ${p.y.toFixed(1)}` };
+        }
+        if (selection.kind === 'inner') {
+          const p = state.inner[selection.index];
+          return { label: `내부 꼭짓점 I${selection.index}`, coords: `x ${p.x.toFixed(1)}   y ${p.y.toFixed(1)}` };
+        }
+        if (selection.kind === 'number') {
+          const p = state.numbers[selection.key];
+          return { label: p.label, coords: `x ${p.x.toFixed(1)}   y ${p.y.toFixed(1)}` };
+        }
+        const line = state.lines[selection.line];
+        if (selection.kind === 'line-end') {
+          const p = line[selection.end];
+          return { label: `${line.label} ${selection.end === 'a' ? '시작점' : '끝점'}`, coords: `x ${p.x.toFixed(1)}   y ${p.y.toFixed(1)}` };
+        }
+        return {
+          label: line.label,
+          coords: `A(${line.a.x.toFixed(1)}, ${line.a.y.toFixed(1)})  B(${line.b.x.toFixed(1)}, ${line.b.y.toFixed(1)})`
+        };
+      }
+
+      function updateReadout() {
+        const info = selectedLabel();
+        els.readout.textContent = info.label;
+        els.coords.textContent = info.coords;
+      }
+
+      function persist() {
+        els.status.textContent = '변경 위치를 저장했습니다.';
+        if (window.openai && window.openai.setWidgetState) {
+          window.openai.setWidgetState({
+            modelContent: { cardLayout: clone(state) },
+            privateContent: { selected: selection }
+          }).catch(() => {});
+        }
+      }
+
+      svg.addEventListener('pointerdown', event => {
+        const target = event.target.closest('[data-drag]');
+        if (!target) return;
+        event.preventDefault();
+        const kind = target.dataset.drag;
+        const start = svgPoint(event);
+        selection = { kind };
+        drag = { kind, start };
+
+        if (kind === 'outer' || kind === 'inner') {
+          drag.index = Number(target.dataset.index);
+          selection.index = drag.index;
+        } else if (kind === 'number') {
+          drag.key = target.dataset.key;
+          selection.key = drag.key;
+        } else {
+          drag.line = Number(target.dataset.line);
+          selection.line = drag.line;
+          if (kind === 'line-end') {
+            drag.end = target.dataset.end;
+            selection.end = drag.end;
+          } else {
+            drag.originalA = { ...state.lines[drag.line].a };
+            drag.originalB = { ...state.lines[drag.line].b };
+          }
+        }
+
+        svg.setPointerCapture(event.pointerId);
+        updateReadout();
+      });
+
+      svg.addEventListener('pointermove', event => {
+        if (!drag) return;
+        const p = clampPoint(svgPoint(event));
+        if (drag.kind === 'outer' || drag.kind === 'inner') {
+          state[drag.kind][drag.index] = p;
+        } else if (drag.kind === 'number') {
+          state.numbers[drag.key].x = p.x;
+          state.numbers[drag.key].y = p.y;
+        } else if (drag.kind === 'line-end') {
+          state.lines[drag.line][drag.end] = p;
+        } else if (drag.kind === 'line') {
+          const dx = p.x - drag.start.x;
+          const dy = p.y - drag.start.y;
+          state.lines[drag.line].a = clampPoint({ x: drag.originalA.x + dx, y: drag.originalA.y + dy });
+          state.lines[drag.line].b = clampPoint({ x: drag.originalB.x + dx, y: drag.originalB.y + dy });
+        }
+        render();
+      });
+
+      function endDrag(event) {
+        if (!drag) return;
+        if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+        drag = null;
+        persist();
+      }
+
+      svg.addEventListener('pointerup', endDrag);
+      svg.addEventListener('pointercancel', endDrag);
+
+      resetButton.addEventListener('click', () => {
+        state = clone(defaults);
+        selection = null;
+        render();
+        els.status.textContent = '처음 배치로 초기화했습니다.';
+        persist();
+      });
+
+      window.addEventListener('openai:set_globals', event => {
+        const next = event.detail && event.detail.globals && event.detail.globals.widgetState
+          ? event.detail.globals.widgetState.modelContent
+          : null;
+        if (next && next.cardLayout && Array.isArray(next.cardLayout.outer)) {
+          state = clone(next.cardLayout);
+          render();
+        }
+      });
+
+      renderGrid();
+      render();
+    })();
+  </script>
+</div>
